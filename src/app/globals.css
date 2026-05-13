@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    @apply bg-cream text-ink;
+    font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .chip { @apply inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold; }
+  .chip-green  { @apply bg-[#e8f5f2] text-[#1a6b5a]; }
+  .chip-red    { @apply bg-[#fde8e6] text-[#b02820]; }
+  .chip-blue   { @apply bg-[#e8f0fd] text-[#1a4db5]; }
+  .chip-amber  { @apply bg-[#fef3e2] text-[#8a5a0a]; }
+  .chip-gray   { @apply bg-[#f0eee8] text-[#5a5a6a]; }
+  .chip-purple { @apply bg-[#eee8fd] text-[#5a2ab0]; }
+  .chip-navy   { @apply bg-[#e8edf8] text-navy; }
+
+  .card { @apply bg-white rounded-2xl border border-line shadow-card p-5; }
+  .stat-card { @apply bg-white rounded-2xl border border-line shadow-card p-4; }
+
+  .btn { @apply px-3 py-2 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5; }
+  .btn-primary { @apply bg-navy text-white hover:bg-navy-3; }
+  .btn-gold    { @apply bg-gold text-navy font-bold hover:bg-gold-2; }
+  .btn-outline { @apply bg-transparent text-ink-2 border border-line hover:bg-cream; }
+  .btn-danger  { @apply bg-[#fff0ef] text-bad-2 border border-[#f5c5c2] hover:bg-[#ffe0de]; }
+  .btn-sm      { @apply px-2.5 py-1.5 text-xs; }
+
+  .form-input, .form-select, .form-textarea {
+    @apply w-full px-3 py-2 rounded-lg border border-line bg-white text-sm
+           focus:outline-none focus:border-navy-3 transition-colors;
+    font-family: "Plus Jakarta Sans", sans-serif;
+  }
+  .form-label { @apply block text-[11px] font-medium text-ink-2 uppercase tracking-wider mb-1; }
+}
