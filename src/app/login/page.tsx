@@ -19,7 +19,10 @@ export default async function LoginPage({
       <div className="absolute -bottom-[15%] -left-[5%] w-[400px] h-[400px] rounded-full bg-gold/[0.04] pointer-events-none" />
 
       <div className="relative z-10 w-full max-w-md bg-white/5 backdrop-blur-xl border border-gold/25 rounded-3xl p-10 text-center">
-        <div className="w-15 h-15 bg-gold rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl">✝</div>
+        <div className="w-24 h-24 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 p-3 shadow-lg">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/images/logo-ecc.webp" alt="ECC Global Finance" className="max-w-full max-h-full object-contain" />
+        </div>
         <p className="font-serif text-[10px] font-light tracking-[0.2em] uppercase text-white/40 mb-1">ECC Global Finance</p>
         <h1 className="font-serif text-2xl text-white mb-1.5">Sistem Rekap Keuangan</h1>
         <p className="text-[13px] text-white/45 mb-8">Masukkan kode akses untuk melanjutkan</p>
@@ -77,9 +80,14 @@ export default async function LoginPage({
           </button>
         </form>
 
-        <p className="text-[11px] text-white/30 mt-5 leading-loose">
-          Demo — Global: <b>00000000</b> &nbsp;|&nbsp; Cabang: <b>12345678</b>
-        </p>
+        <div className="mt-6 pt-5 border-t border-white/10 flex items-center justify-center gap-2 flex-wrap">
+          <span className="text-[10px] uppercase tracking-wider text-white/45">Powered by</span>
+          <span className="text-[11px] text-white/80 font-semibold">PT Solusi Inovasi Bangsa</span>
+          <span className="inline-flex items-center bg-white rounded-md px-2 py-1">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/images/logo-idea.webp" alt="IDEA" className="h-3.5 w-auto" />
+          </span>
+        </div>
       </div>
 
       <script
