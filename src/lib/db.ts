@@ -1,6 +1,14 @@
 // PostgreSQL connection pool — node-pg.
 
-import { Pool, type QueryResult, type QueryResultRow } from "pg";
+import { Pool, type QueryResult, type QueryResultRow, types } from "pg";
+
+// node-pg by default return BIGINT (OID 20) sebagai STRING untuk avoid precision
+// loss pada nilai > 2^53. Untuk schema ECC, ID tidak akan dekat batas itu, jadi
+// aman parse jadi JS number. Tanpa ini, `id === Number(...)` selalu false.
+types.setTypeParser(20, (val) => parseInt(val, 10));
+
+// NUMERIC (OID 1700) tetap STRING — untuk preserve presisi money fields.
+// (Itu sudah default behavior, no override needed.)
 
 declare global {
   // eslint-disable-next-line no-var
