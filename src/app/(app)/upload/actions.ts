@@ -67,11 +67,11 @@ export async function uploadFileAction(formData: FormData) {
     );
   }
 
-  // 4) Currency check
-  if (account.currency && account.currency !== parsed.currency) {
+  // 4) Currency check — sekarang strict (account.currency selalu set, manual input)
+  if (account.currency !== parsed.currency) {
     redirect(
       `/upload?err=${encodeURIComponent(
-        `Currency mismatch: file ${parsed.currency}, akun ${account.currency}.`
+        `Currency mismatch: file ${parsed.currency}, akun ${account.currency}. Cek akun di Kelola Rekening atau pilih file yang benar.`
       )}`
     );
   }

@@ -103,7 +103,7 @@ export default async function UploadPreviewPage({
   const close = parseFloat(u.closing_balance ?? "0");
   const balanceOk = u.closing_balance !== null ? Math.abs(close - computedClose) <= 1 : null;
 
-  const currencyMismatch = u.account_currency && u.account_currency !== u.currency;
+  const currencyMismatch = u.account_currency !== u.currency;
 
   return (
     <>
@@ -162,12 +162,6 @@ export default async function UploadPreviewPage({
           <div className="mt-3 p-2 bg-[#fde8e6] border border-[#f5c5c2] rounded text-[11px] text-bad-2">
             ⚠ Currency mismatch: file <strong>{u.currency}</strong>, akun terdaftar{" "}
             <strong>{u.account_currency}</strong>. Confirm akan diblock.
-          </div>
-        )}
-
-        {!u.account_currency && (
-          <div className="mt-3 p-2 bg-[#fef7e8] border border-[#f5d98a] rounded text-[11px] text-[#8a5a0a]">
-            ℹ Currency akun belum di-set. Akan otomatis di-set ke <strong>{u.currency}</strong> saat confirm.
           </div>
         )}
       </div>

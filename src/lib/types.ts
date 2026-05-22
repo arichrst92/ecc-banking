@@ -9,9 +9,24 @@ export interface Branch {
   created_at: string; updated_at: string;
 }
 
+export interface Segment {
+  id: number; branch_id: number; name: string; code: string | null;
+  status: "aktif" | "nonaktif"; notes: string | null;
+  display_order: number;
+  created_at: string; updated_at: string;
+}
+
+export interface SubSegment {
+  id: number; segment_id: number; name: string; code: string | null;
+  status: "aktif" | "nonaktif"; notes: string | null;
+  display_order: number;
+  created_at: string; updated_at: string;
+}
+
 export interface Account {
-  id: number; branch_id: number; bank: string; account_number: string;
-  account_holder: string; purpose: string; currency: string | null;
+  id: number; branch_id: number; sub_segment_id: number;
+  bank: string; account_number: string;
+  account_holder: string; purpose: string; currency: string;
   status: "aktif" | "nonaktif"; current_balance: string;
   last_synced_at: string | null; created_at: string; updated_at: string;
 }

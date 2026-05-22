@@ -125,14 +125,14 @@ export async function confirmUploadAction(uploadId: number) {
         ? Math.abs(close - computed) <= 1
         : null;
 
-      // Update accounts: set currency (jika NULL), current_balance, last_synced_at
+      // Update accounts: current_balance, last_synced_at
+      // (currency tidak diubah — sekarang manual di Kelola Rekening)
       await client.query(
         `UPDATE accounts
-            SET currency = COALESCE(currency, $1),
-                current_balance = COALESCE($2, current_balance),
+            SET current_balance = COALESCE($1, current_balance),
                 last_synced_at = NOW()
-          WHERE id = $3`,
-        [parsed.currency, lastBalance, upload.account_id]
+          WHERE id = $2`,
+        [lastBalance, upload.account_id]
       );
 
       // Update uploads: status=success

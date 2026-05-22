@@ -10,6 +10,8 @@ export const dynamic = "force-dynamic";
 type BranchRow = {
   id: number; name: string; code: string; pic_name: string; pic_phone: string | null;
   status: "aktif" | "nonaktif" | "review"; notes: string | null;
+  segment_count: number;
+  sub_count: number;
   account_count: number;
 };
 
@@ -23,6 +25,10 @@ export default async function CabangPage({
 
   const branches = await query<BranchRow>(
     `SELECT b.*,
+            COALESCE((SELECT COUNT(*)::INT FROM segments s WHERE s.branch_id = b.id), 0) AS segment_count,
+            COALESCE((SELECT COUNT(*)::INT FROM sub_segments ss
+                       JOIN segments s ON s.id = ss.segment_id
+                       WHERE s.branch_id = b.id), 0) AS sub_count,
             COALESCE((SELECT COUNT(*)::INT FROM accounts a WHERE a.branch_id = b.id), 0) AS account_count
        FROM branches b
        ORDER BY b.name`
@@ -177,14 +183,18 @@ export default async function CabangPage({
                   <span>PIC: {b.pic_name}</span>
                   {b.pic_phone && <span>WA: {b.pic_phone}</span>}
                 </div>
-                <div className="mt-2 text-[12px] text-ink-2">
-                  <strong>{b.account_count}</strong> rekening terdaftar
-                  {b.notes && <span className="ml-3 text-ink-3 italic">· {b.notes}</span>}
+                <div className="mt-2 flex items-center gap-3 text-[12px] text-ink-2">
+                  <span><strong>{b.segment_count}</strong> Tipe Dana</span>
+                  <span className="text-ink-3">·</span>
+                  <span><strong>{b.sub_count}</strong> Sub Tipe Dana</span>
+                  <span className="text-ink-3">·</span>
+                  <span><strong>{b.account_count}</strong> Rekening</span>
                 </div>
+                {b.notes && <p className="text-[11px] text-ink-3 italic mt-1">{b.notes}</p>}
               </div>
               <div className="flex gap-1.5 shrink-0">
                 <Link href={`/cabang/${b.id}`} className="btn btn-outline btn-sm">
-                  Kelola Rekening
+                  Kelola Tipe Dana
                 </Link>
                 <Link href={`/cabang?edit=${b.id}`} className="btn btn-outline btn-sm">
                   Edit

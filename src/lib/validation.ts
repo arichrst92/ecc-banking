@@ -12,13 +12,25 @@ export const BranchSchema = z.object({
   notes: z.string().trim().max(500).optional().nullable(),
 });
 
+export const SegmentSchema = z.object({
+  name: z.string().trim().min(2, "Nama minimal 2 karakter").max(100),
+  code: z.string().trim().max(16).optional().nullable(),
+  status: z.enum(["aktif", "nonaktif"]),
+  notes: z.string().trim().max(500).optional().nullable(),
+  display_order: z.coerce.number().int().min(0).max(9999).default(0),
+});
+
+export const SubSegmentSchema = SegmentSchema; // sama bentuknya
+
 export const AccountSchema = z.object({
-  branch_id: z.number().int().positive(),
+  sub_segment_id: z.number().int().positive(),
   bank: z.string().trim().min(2, "Bank wajib").max(50),
   account_number: z.string().trim().min(5, "Min 5 digit").max(30)
     .regex(/^\d+$/, "Hanya angka, tanpa spasi/strip"),
   account_holder: z.string().trim().min(2).max(100),
   purpose: z.string().trim().min(2, "Peruntukan wajib").max(100),
+  currency: z.string().trim().toUpperCase()
+    .regex(/^[A-Z]{3}$/, "Currency harus 3 huruf ISO 4217 (mis. IDR, USD)"),
   status: z.enum(["aktif", "nonaktif"]),
 });
 

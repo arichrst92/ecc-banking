@@ -5,18 +5,17 @@ import { revalidatePath } from "next/cache";
 import { db, queryOne } from "@/lib/db";
 import { requireGlobal } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
-import { AccountSchema } from "@/lib/validation";
+import { SegmentSchema } from "@/lib/validation";
 
-export async function createAccountAction(branchId: number, formData: FormData) {
+export async function createSegmentAction(branchId: number, formData: FormData) {
   const session = requireGlobal();
 
-  const parsed = AccountSchema.safeParse({
-    branch_id: branchId,
-    bank: formData.get("bank"),
-    account_number: formData.get("account_number"),
-    account_holder: formData.get("account_holder"),
-    purpose: formData.get("purpose"),
+  const parsed = SegmentSchema.safeParse({
+    name: formData.get("name"),
+    code: formData.get("code") || null,
     status: formData.get("status"),
+    notes: formData.get("notes") || null,
+    display_order: formData.get("display_order") || 0,
   });
   if (!parsed.success) {
     redirect(`/cabang/${branchId}?err=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Input tidak valid")}`);
@@ -25,34 +24,33 @@ export async function createAccountAction(branchId: number, formData: FormData) 
   const d = parsed.data;
   try {
     const { rows } = await db.query<{ id: number }>(
-      `INSERT INTO accounts (branch_id, bank, account_number, account_holder, purpose, status)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-      [branchId, d.bank, d.account_number, d.account_holder, d.purpose, d.status]
+      `INSERT INTO segments (branch_id, name, code, status, notes, display_order)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+      [branchId, d.name, d.code?.toUpperCase() ?? null, d.status, d.notes, d.display_order]
     );
-    await logAudit(session, "create_account", {
-      target_table: "accounts", target_id: rows[0].id, details: d,
+    await logAudit(session, "create_segment", {
+      target_table: "segments", target_id: rows[0].id, details: { branch_id: branchId, ...d },
     });
   } catch (e: any) {
     if (e.code === "23505") {
-      redirect(`/cabang/${branchId}?err=${encodeURIComponent("Rekening bank + nomor itu sudah terdaftar (mungkin di cabang lain)")}`);
+      redirect(`/cabang/${branchId}?err=${encodeURIComponent("Nama Tipe Dana sudah dipakai di cabang ini")}`);
     }
     throw e;
   }
 
   revalidatePath(`/cabang/${branchId}`);
-  redirect(`/cabang/${branchId}?msg=Rekening%20ditambahkan`);
+  redirect(`/cabang/${branchId}?msg=Tipe%20Dana%20ditambahkan`);
 }
 
-export async function updateAccountAction(branchId: number, accountId: number, formData: FormData) {
+export async function updateSegmentAction(branchId: number, segmentId: number, formData: FormData) {
   const session = requireGlobal();
 
-  const parsed = AccountSchema.safeParse({
-    branch_id: branchId,
-    bank: formData.get("bank"),
-    account_number: formData.get("account_number"),
-    account_holder: formData.get("account_holder"),
-    purpose: formData.get("purpose"),
+  const parsed = SegmentSchema.safeParse({
+    name: formData.get("name"),
+    code: formData.get("code") || null,
     status: formData.get("status"),
+    notes: formData.get("notes") || null,
+    display_order: formData.get("display_order") || 0,
   });
   if (!parsed.success) {
     redirect(`/cabang/${branchId}?err=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Input tidak valid")}`);
@@ -61,44 +59,45 @@ export async function updateAccountAction(branchId: number, accountId: number, f
   const d = parsed.data;
   try {
     await db.query(
-      `UPDATE accounts
-          SET bank=$1, account_number=$2, account_holder=$3, purpose=$4, status=$5
+      `UPDATE segments
+          SET name=$1, code=$2, status=$3, notes=$4, display_order=$5
         WHERE id=$6 AND branch_id=$7`,
-      [d.bank, d.account_number, d.account_holder, d.purpose, d.status, accountId, branchId]
+      [d.name, d.code?.toUpperCase() ?? null, d.status, d.notes, d.display_order, segmentId, branchId]
     );
-    await logAudit(session, "update_account", {
-      target_table: "accounts", target_id: accountId, details: d,
+    await logAudit(session, "update_segment", {
+      target_table: "segments", target_id: segmentId, details: d,
     });
   } catch (e: any) {
     if (e.code === "23505") {
-      redirect(`/cabang/${branchId}?err=${encodeURIComponent("Bank + nomor rekening sudah dipakai akun lain")}`);
+      redirect(`/cabang/${branchId}?err=${encodeURIComponent("Nama Tipe Dana sudah dipakai di cabang ini")}`);
     }
     throw e;
   }
 
   revalidatePath(`/cabang/${branchId}`);
-  redirect(`/cabang/${branchId}?msg=Rekening%20diperbarui`);
+  redirect(`/cabang/${branchId}?msg=Tipe%20Dana%20diperbarui`);
 }
 
-export async function deleteAccountAction(branchId: number, accountId: number) {
+export async function deleteSegmentAction(branchId: number, segmentId: number) {
   const session = requireGlobal();
 
-  const inUse = await queryOne<{ count: string }>(
-    `SELECT COUNT(*)::TEXT AS count FROM transactions WHERE account_id = $1`, [accountId]
+  const seg = await queryOne<{ name: string }>(
+    `SELECT name FROM segments WHERE id=$1 AND branch_id=$2`, [segmentId, branchId]
   );
-  if (Number(inUse?.count ?? 0) > 0) {
-    redirect(`/cabang/${branchId}?err=${encodeURIComponent(`Tidak bisa hapus — ${inUse?.count} transaksi masih terdaftar`)}`);
+  if (!seg) redirect(`/cabang/${branchId}?err=Tipe%20Dana%20tidak%20ditemukan`);
+
+  const subCount = await queryOne<{ count: string }>(
+    `SELECT COUNT(*)::TEXT AS count FROM sub_segments WHERE segment_id=$1`, [segmentId]
+  );
+  if (Number(subCount?.count ?? 0) > 0) {
+    redirect(`/cabang/${branchId}?err=${encodeURIComponent(`Tidak bisa hapus — ${subCount?.count} Sub Tipe Dana masih ada di sini`)}`);
   }
 
-  const acc = await queryOne<{ bank: string; account_number: string }>(
-    `SELECT bank, account_number FROM accounts WHERE id = $1`, [accountId]
-  );
-
-  await db.query(`DELETE FROM accounts WHERE id = $1 AND branch_id = $2`, [accountId, branchId]);
-  await logAudit(session, "delete_account", {
-    target_table: "accounts", target_id: accountId, details: acc ?? {},
+  await db.query(`DELETE FROM segments WHERE id=$1 AND branch_id=$2`, [segmentId, branchId]);
+  await logAudit(session, "delete_segment", {
+    target_table: "segments", target_id: segmentId, details: { name: seg.name },
   });
 
   revalidatePath(`/cabang/${branchId}`);
-  redirect(`/cabang/${branchId}?msg=Rekening%20dihapus`);
+  redirect(`/cabang/${branchId}?msg=Tipe%20Dana%20dihapus`);
 }

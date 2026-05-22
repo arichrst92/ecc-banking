@@ -1,30 +1,244 @@
+import Link from "next/link";
 import { Topbar } from "@/components/topbar";
 import { getSession } from "@/lib/session";
+import { query } from "@/lib/db";
+import { formatMoney, formatDateTime } from "@/lib/format";
 
-export default function DashboardPage() {
+export const dynamic = "force-dynamic";
+
+type BranchRow = {
+  branch_id: number;
+  branch_name: string;
+  branch_code: string;
+  branch_status: string;
+  currency: string;
+  total_balance: string;
+  account_count: number;
+  month_in: string;
+  month_out: string;
+  tx_count: number;
+};
+
+type StatRow = {
+  currency: string;
+  total_balance: string;
+  month_in: string;
+  month_out: string;
+  tx_count: number;
+};
+
+export default async function DashboardPage() {
   const session = getSession()!;
+  const branchFilter = session.role === "branch" && session.branchId
+    ? `AND b.id = ${session.branchId}`
+    : "";
+
+  // Per-cabang per-currency: total balance + month in/out
+  const rows = await query<BranchRow>(`
+    SELECT b.id AS branch_id, b.name AS branch_name, b.code AS branch_code, b.status AS branch_status,
+           COALESCE(a.currency, 'IDR') AS currency,
+           COALESCE(SUM(a.current_balance), 0)::TEXT AS total_balance,
+           COUNT(a.id)::INT AS account_count,
+           COALESCE((
+             SELECT SUM(t.credit) FROM transactions t
+              WHERE t.branch_id = b.id
+                AND COALESCE(t.currency, 'IDR') = COALESCE(a.currency, 'IDR')
+                AND t.tx_date >= date_trunc('month', CURRENT_DATE)
+                AND t.archived_at IS NULL
+           ), 0)::TEXT AS month_in,
+           COALESCE((
+             SELECT SUM(t.debit) FROM transactions t
+              WHERE t.branch_id = b.id
+                AND COALESCE(t.currency, 'IDR') = COALESCE(a.currency, 'IDR')
+                AND t.tx_date >= date_trunc('month', CURRENT_DATE)
+                AND t.archived_at IS NULL
+           ), 0)::TEXT AS month_out,
+           COALESCE((
+             SELECT COUNT(*)::INT FROM transactions t
+              WHERE t.branch_id = b.id
+                AND COALESCE(t.currency, 'IDR') = COALESCE(a.currency, 'IDR')
+                AND t.tx_date >= date_trunc('month', CURRENT_DATE)
+                AND t.archived_at IS NULL
+           ), 0) AS tx_count
+      FROM branches b
+      LEFT JOIN accounts a ON a.branch_id = b.id
+     WHERE b.status = 'aktif' ${branchFilter}
+     GROUP BY b.id, b.name, b.code, b.status, a.currency
+     ORDER BY b.name, currency
+  `);
+
+  // Konsolidasi per currency (untuk stat-card)
+  const totals = await query<StatRow>(`
+    WITH t_month AS (
+      SELECT COALESCE(t.currency, 'IDR') AS currency,
+             SUM(t.credit) AS month_in,
+             SUM(t.debit) AS month_out,
+             COUNT(*)::INT AS tx_count
+        FROM transactions t
+        JOIN branches b ON b.id = t.branch_id
+       WHERE t.tx_date >= date_trunc('month', CURRENT_DATE)
+         AND t.archived_at IS NULL
+         ${branchFilter}
+       GROUP BY t.currency
+    ),
+    a_total AS (
+      SELECT COALESCE(a.currency, 'IDR') AS currency,
+             SUM(a.current_balance) AS total_balance
+        FROM accounts a
+        JOIN branches b ON b.id = a.branch_id
+       WHERE a.status = 'aktif' ${branchFilter}
+       GROUP BY a.currency
+    )
+    SELECT COALESCE(t.currency, a.currency) AS currency,
+           COALESCE(a.total_balance, 0)::TEXT AS total_balance,
+           COALESCE(t.month_in, 0)::TEXT AS month_in,
+           COALESCE(t.month_out, 0)::TEXT AS month_out,
+           COALESCE(t.tx_count, 0) AS tx_count
+      FROM a_total a
+      FULL OUTER JOIN t_month t ON a.currency = t.currency
+     ORDER BY currency
+  `);
+
+  // Branch info kalau role=branch
+  const subtitle =
+    session.role === "branch"
+      ? `Cabang Anda — periode ${new Date().toLocaleDateString("id-ID", {
+          month: "long", year: "numeric",
+        })}`
+      : `Konsolidasi semua cabang aktif — periode ${new Date().toLocaleDateString("id-ID", {
+          month: "long", year: "numeric",
+        })}`;
+
+  const hasAnyData = rows.length > 0;
+
   return (
     <>
-      <Topbar title="Dashboard" role={session.role} subtitle="Ringkasan keuangan periode berjalan" />
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5 mb-5">
-        {[
-          { label: "TOTAL SALDO", value: "Rp 0", sub: "semua rekening", cls: "" },
-          { label: "PEMASUKAN BULAN INI", value: "Rp 0", sub: "0 transaksi", cls: "text-good" },
-          { label: "PENGELUARAN BULAN INI", value: "Rp 0", sub: "0 transaksi", cls: "text-bad" },
-          { label: "SALDO BERSIH", value: "Rp 0", sub: "diff bulan ini", cls: "text-[#a07c20]" },
-        ].map((s) => (
-          <div key={s.label} className="stat-card">
-            <div className="text-[10px] uppercase tracking-wider text-ink-3 mb-1.5">{s.label}</div>
-            <div className={`text-[22px] font-bold leading-none ${s.cls}`}>{s.value}</div>
-            <div className="text-[11px] text-ink-3 mt-1.5">{s.sub}</div>
+      <Topbar title="Dashboard" role={session.role} subtitle={subtitle} />
+
+      {/* Stat cards per currency */}
+      {totals.length === 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5 mb-5">
+          {[
+            { label: "TOTAL SALDO", value: "Rp 0", cls: "" },
+            { label: "PEMASUKAN BULAN INI", value: "Rp 0", cls: "text-good" },
+            { label: "PENGELUARAN BULAN INI", value: "Rp 0", cls: "text-bad" },
+            { label: "SALDO BERSIH", value: "Rp 0", cls: "text-[#a07c20]" },
+          ].map((s) => (
+            <div key={s.label} className="stat-card">
+              <div className="text-[10px] uppercase tracking-wider text-ink-3 mb-1.5">{s.label}</div>
+              <div className={`text-[22px] font-bold leading-none ${s.cls}`}>{s.value}</div>
+              <div className="text-[11px] text-ink-3 mt-1.5">belum ada transaksi</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {totals.map((t) => {
+        const net = parseFloat(t.month_in) - parseFloat(t.month_out);
+        return (
+          <div key={t.currency} className="mb-5">
+            {totals.length > 1 && (
+              <h3 className="font-semibold text-[14px] text-navy mb-2">
+                Mata Uang: <span className="font-mono">{t.currency}</span>
+              </h3>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5">
+              <div className="stat-card">
+                <div className="text-[10px] uppercase tracking-wider text-ink-3 mb-1.5">TOTAL SALDO</div>
+                <div className="text-[22px] font-bold leading-none">
+                  {formatMoney(t.total_balance, t.currency)}
+                </div>
+                <div className="text-[11px] text-ink-3 mt-1.5">semua rekening aktif</div>
+              </div>
+              <div className="stat-card">
+                <div className="text-[10px] uppercase tracking-wider text-ink-3 mb-1.5">PEMASUKAN BULAN INI</div>
+                <div className="text-[22px] font-bold leading-none text-good">
+                  {formatMoney(t.month_in, t.currency)}
+                </div>
+                <div className="text-[11px] text-ink-3 mt-1.5">{t.tx_count} transaksi</div>
+              </div>
+              <div className="stat-card">
+                <div className="text-[10px] uppercase tracking-wider text-ink-3 mb-1.5">PENGELUARAN BULAN INI</div>
+                <div className="text-[22px] font-bold leading-none text-bad">
+                  {formatMoney(t.month_out, t.currency)}
+                </div>
+                <div className="text-[11px] text-ink-3 mt-1.5">{t.tx_count} transaksi total</div>
+              </div>
+              <div className="stat-card">
+                <div className="text-[10px] uppercase tracking-wider text-ink-3 mb-1.5">SALDO BERSIH BULAN INI</div>
+                <div className={`text-[22px] font-bold leading-none ${
+                  net >= 0 ? "text-good" : "text-bad"
+                }`}>
+                  {net >= 0 ? "+" : ""}{formatMoney(net, t.currency)}
+                </div>
+                <div className="text-[11px] text-ink-3 mt-1.5">in − out</div>
+              </div>
+            </div>
           </div>
-        ))}
-      </div>
+        );
+      })}
+
+      {/* Per Cabang */}
       <div className="card">
-        <div className="text-[13px] font-semibold mb-3">Per Cabang</div>
-        <p className="text-[12px] text-ink-3">
-          Skeleton — Milestone 4. Data per cabang akan ditampilkan setelah upload pertama.
-        </p>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-[14px]">
+            {session.role === "global" ? "Per Cabang" : "Rekening Cabang Anda"}
+          </h3>
+          <Link href="/upload" className="btn btn-gold btn-sm">+ Upload Mutasi</Link>
+        </div>
+
+        {!hasAnyData ? (
+          <p className="text-[12px] text-ink-3 text-center py-6">
+            Belum ada rekening / data. Mulai dengan <Link href="/cabang" className="text-info underline">tambah rekening</Link> + upload mutasi.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="border-b border-line">
+                  <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Cabang</th>
+                  <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Cur</th>
+                  <th className="text-right py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Saldo</th>
+                  <th className="text-right py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Bulan In</th>
+                  <th className="text-right py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Bulan Out</th>
+                  <th className="text-right py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Rek.</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={`${r.branch_id}-${r.currency}`} className="border-b border-line hover:bg-cream">
+                    <td className="py-2.5 px-2 font-medium">
+                      {r.branch_name}{" "}
+                      <span className="text-[10px] text-ink-3 font-normal">({r.branch_code})</span>
+                    </td>
+                    <td className="py-2.5 px-2 text-ink-3 font-mono text-[11px]">{r.currency}</td>
+                    <td className="py-2.5 px-2 text-right font-semibold">
+                      {formatMoney(r.total_balance, r.currency)}
+                    </td>
+                    <td className="py-2.5 px-2 text-right text-good">
+                      {formatMoney(r.month_in, r.currency)}
+                    </td>
+                    <td className="py-2.5 px-2 text-right text-bad-2">
+                      {formatMoney(r.month_out, r.currency)}
+                    </td>
+                    <td className="py-2.5 px-2 text-right text-ink-2">{r.account_count}</td>
+                    <td className="py-2.5 px-2 text-right">
+                      {session.role === "global" && (
+                        <Link
+                          href={`/laporan?branch_id=${r.branch_id}`}
+                          className="btn btn-outline btn-sm"
+                        >
+                          Laporan
+                        </Link>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </>
   );
