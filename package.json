@@ -12,6 +12,7 @@
     "seed:auth": "node scripts/seed-auth-codes.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.0",
     "bcryptjs": "^2.4.3",
     "chart.js": "^4.4.4",
     "clsx": "^2.1.1",

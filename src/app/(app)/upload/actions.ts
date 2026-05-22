@@ -24,13 +24,17 @@ export async function uploadFileAction(formData: FormData) {
   const buffer = Buffer.from(await file.arrayBuffer());
   const content = buffer.toString("utf8");
 
-  // 1) Parse
-  let parsed;
+  // 1) Parse — flow: hardcoded → format_profiles → LLM bootstrap (kalau ada API key)
+  let detected;
   try {
-    parsed = detectAndParse(content, file.name);
+    detected = await detectAndParse(content, file.name, {
+      actor_role: session.role,
+      allow_llm_fallback: !!process.env.ANTHROPIC_API_KEY,
+    });
   } catch (e: any) {
     redirect(`/upload?err=${encodeURIComponent(e.message ?? "Parser error")}`);
   }
+  const parsed = detected.result;
 
   // 2) Match account by account_number
   const account = await queryOne<{
@@ -81,17 +85,18 @@ export async function uploadFileAction(formData: FormData) {
   const { rows } = await db.query<{ id: number }>(
     `INSERT INTO uploads (
        account_id, branch_id, filename, mime_type, file_size_bytes,
-       parser_name, date_from, date_to, currency,
+       parser_name, format_profile_id, date_from, date_to, currency,
        opening_balance, closing_balance,
        total_debit_period, total_credit_period,
        total_debit_count, total_credit_count,
        tx_count, status, uploaded_by_role, uploaded_by_branch_id
      ) VALUES (
-       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'pending',$17,$18
+       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'pending',$18,$19
      ) RETURNING id`,
     [
       account.id, account.branch_id, file.name, file.type || "text/csv", file.size,
-      parsed.parser_name, parsed.date_from, parsed.date_to, parsed.currency,
+      parsed.parser_name, detected.profile_id ?? null,
+      parsed.date_from, parsed.date_to, parsed.currency,
       parsed.opening_balance, parsed.closing_balance,
       parsed.total_debit_period, parsed.total_credit_period,
       parsed.total_debit_count, parsed.total_credit_count,
@@ -121,12 +126,18 @@ export async function uploadFileAction(formData: FormData) {
     details: {
       filename: file.name,
       parser: parsed.parser_name,
+      parser_source: detected.source,
+      profile_id: detected.profile_id ?? null,
+      profile_name: detected.profile_name ?? null,
+      llm_cost_usd: detected.llm_cost_usd ?? null,
       tx_count: parsed.transactions.length,
       account_id: account.id,
     },
   });
 
-  redirect(`/upload/${uploadId}`);
+  // Kalau LLM yang baru bootstrap profile, attach info di query string supaya preview tampilkan banner
+  const llmFlag = detected.source === "llm" ? `&llm=1&profile=${encodeURIComponent(detected.profile_name ?? "")}` : "";
+  redirect(`/upload/${uploadId}?${llmFlag.slice(1)}`);
 }
 
 /**

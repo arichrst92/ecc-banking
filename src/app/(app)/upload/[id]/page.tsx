@@ -41,8 +41,10 @@ type UploadRow = {
 
 export default async function UploadPreviewPage({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  searchParams: { llm?: string; profile?: string };
 }) {
   const session = getSession()!;
   const uploadId = Number(params.id);
@@ -81,13 +83,20 @@ export default async function UploadPreviewPage({
   }
 
   // Read file dan parse ulang untuk preview sample transaksi
-  let sampleTxs: Awaited<ReturnType<typeof detectAndParse>>["transactions"] = [];
+  type SampleTx = {
+    tx_date: string; description: string; debit: number; credit: number;
+    balance: number | null; direction: "in" | "out";
+  };
+  let sampleTxs: SampleTx[] = [];
   let parseError: string | null = null;
   if (u.storage_path) {
     try {
       const content = await readUploadFile(u.storage_path);
-      const parsed = detectAndParse(content, u.filename);
-      sampleTxs = parsed.transactions;
+      const detected = await detectAndParse(content, u.filename, {
+        actor_role: session.role,
+        allow_llm_fallback: false, // pas preview re-parse, jangan call LLM
+      });
+      sampleTxs = detected.result.transactions;
     } catch (e: any) {
       parseError = e.message ?? String(e);
     }
@@ -118,6 +127,22 @@ export default async function UploadPreviewPage({
         role={session.role}
         subtitle={`${u.filename} · ${u.parser_name} · uploaded ${formatDateTime(u.uploaded_at)}`}
       />
+
+      {searchParams.llm === "1" && (
+        <div className="card bg-[#eef3fd] border-[#c5d4f7] mb-4">
+          <h3 className="font-semibold text-[13px] text-info mb-1">
+            ✨ Format baru di-pelajari oleh AI
+          </h3>
+          <p className="text-[12px] text-ink-2">
+            Profile parser <strong>{searchParams.profile ?? "—"}</strong> dibuat dari analisa Claude API.
+            Verifikasi data preview di bawah. Format ini sudah disimpan, upload berikutnya dengan
+            format yang sama akan parse instant tanpa LLM (gratis &amp; cepat).
+          </p>
+          <p className="text-[11px] text-ink-3 mt-2">
+            Untuk review/edit profile: <strong>Kelola Format Parser</strong> (Global Admin only).
+          </p>
+        </div>
+      )}
 
       {parseError && (
         <div className="card bg-[#fef3f2] border-[#f5c5c2] mb-4">

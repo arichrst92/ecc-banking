@@ -56,10 +56,14 @@ export async function confirmUploadAction(uploadId: number) {
     redirect(`/upload?err=${encodeURIComponent("Gagal baca file: " + e.message)}`);
   }
 
-  // Re-parse
+  // Re-parse — kali ini profile sudah ada di DB, jadi tidak akan kena LLM lagi
   let parsed;
   try {
-    parsed = detectAndParse(content, "");
+    const detected = await detectAndParse(content, upload.storage_path, {
+      actor_role: session.role,
+      allow_llm_fallback: false, // confirm tahap = profile harus sudah ada
+    });
+    parsed = detected.result;
   } catch (e: any) {
     await db.query(
       `UPDATE uploads SET status='failed', error_message=$1 WHERE id=$2`,

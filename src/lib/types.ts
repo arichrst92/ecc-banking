@@ -52,6 +52,28 @@ export interface Upload {
   uploaded_at: string; processed_at: string | null;
 }
 
+export interface FormatProfile {
+  id: number;
+  name: string;
+  bank_hint: string | null;
+  detect_patterns: string[];
+  config: unknown; // FormatProfileConfig dari src/parsers/profile-config.ts
+  status: "active" | "disabled" | "pending_review";
+  created_by: "manual" | "llm" | "seed";
+  created_by_role: string | null;
+  upload_count: number;
+  success_count: number;
+  fail_count: number;
+  last_used_at: string | null;
+  notes: string | null;
+  llm_model: string | null;
+  llm_input_tokens: number | null;
+  llm_output_tokens: number | null;
+  llm_cost_usd: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Transaction {
   id: number; account_id: number; branch_id: number; upload_id: number;
   category_id: number; currency: string; tx_date: string; tx_time: string | null;

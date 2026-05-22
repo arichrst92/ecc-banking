@@ -1,21 +1,121 @@
-// Registry semua adapter parser. Tambah adapter baru di array `adapters`.
+// Parser registry — flow hybrid:
+//   1. Hardcoded adapters (BCA, dll) — paling cepat
+//   2. format_profiles dari DB (active) — generic engine + schema config
+//   3. LLM bootstrap — analisa format baru, generate profile, parse
 
 import { bcaCsvAdapter } from "./bca-csv";
+import { genericParse } from "./generic-engine";
+import { learnFormatProfile } from "./profile-learner";
+import { query } from "@/lib/db";
 import type { ParseAdapter, ParseResult } from "./types";
+import type { FormatProfileConfig } from "./profile-config";
 
-const adapters: ParseAdapter[] = [bcaCsvAdapter];
+const hardcodedAdapters: ParseAdapter[] = [bcaCsvAdapter];
 
-export function detectAndParse(content: string, filename: string): ParseResult {
-  for (const a of adapters) {
+export interface DetectResult {
+  result: ParseResult;
+  source: "hardcoded" | "profile" | "llm";
+  profile_id?: number;
+  profile_name?: string;
+  llm_cost_usd?: number;
+}
+
+export async function detectAndParse(
+  content: string,
+  filename: string,
+  options: { actor_role: string; allow_llm_fallback?: boolean }
+): Promise<DetectResult> {
+  // ── Step 1: hardcoded adapters ──
+  for (const a of hardcodedAdapters) {
     if (a.detect(content, filename)) {
-      return a.parse(content);
+      try {
+        const result = await Promise.resolve(a.parse(content));
+        return { result, source: "hardcoded", profile_name: a.name };
+      } catch {
+        // Adapter gagal parse, lanjut ke step berikutnya
+      }
     }
   }
-  throw new Error(
-    "Format file tidak didukung. Saat ini baru BCA CSV yang aktif. Bank lain di milestone berikutnya."
+
+  // ── Step 2: format_profiles dari DB ──
+  const profiles = await query<{
+    id: number;
+    name: string;
+    detect_patterns: string[];
+    config: FormatProfileConfig;
+  }>(
+    `SELECT id, name, detect_patterns, config
+       FROM format_profiles
+      WHERE status = 'active'
+      ORDER BY upload_count DESC`
   );
+
+  const head = content.slice(0, 2000);
+  for (const p of profiles) {
+    const allMatch = (p.detect_patterns ?? []).every((pat) => {
+      try {
+        return new RegExp(pat, "i").test(head);
+      } catch {
+        return false;
+      }
+    });
+    if (!allMatch) continue;
+
+    try {
+      const result = genericParse(content, p.config as FormatProfileConfig, p.name);
+      // Bump usage stats
+      await query(
+        `UPDATE format_profiles
+            SET upload_count = upload_count + 1,
+                success_count = success_count + 1,
+                last_used_at = NOW()
+          WHERE id = $1`,
+        [p.id]
+      );
+      return { result, source: "profile", profile_id: p.id, profile_name: p.name };
+    } catch (e) {
+      await query(
+        `UPDATE format_profiles
+            SET upload_count = upload_count + 1,
+                fail_count = fail_count + 1,
+                last_used_at = NOW()
+          WHERE id = $1`,
+        [p.id]
+      );
+      // Profile gagal parse — lanjut coba profile berikutnya atau LLM
+    }
+  }
+
+  // ── Step 3: LLM bootstrap ──
+  if (!options.allow_llm_fallback) {
+    throw new Error(
+      "Format file tidak dikenal. Tidak ada adapter hardcoded maupun profile aktif yang cocok. " +
+      "Aktifkan LLM fallback atau bangun profile manual."
+    );
+  }
+
+  const learned = await learnFormatProfile(content, { filename, actor_role: options.actor_role });
+
+  // Parse pakai config yang baru dipelajari
+  const result = genericParse(content, learned.config, learned.name);
+
+  // Bump usage
+  await query(
+    `UPDATE format_profiles
+        SET upload_count = 1, success_count = 1, last_used_at = NOW()
+      WHERE id = $1`,
+    [learned.profile_id]
+  );
+
+  return {
+    result,
+    source: "llm",
+    profile_id: learned.profile_id,
+    profile_name: learned.name,
+    llm_cost_usd: learned.llm_cost_usd,
+  };
 }
 
 export function getAdapterNames(): string[] {
-  return adapters.map((a) => a.name);
+  return hardcodedAdapters.map((a) => a.name);
 }
