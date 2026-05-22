@@ -3,7 +3,7 @@ import { Topbar } from "@/components/topbar";
 import { getSession } from "@/lib/session";
 import { query } from "@/lib/db";
 import { formatDateTime, formatMoney } from "@/lib/format";
-import { uploadFileAction } from "./actions";
+import { uploadFileAction, deleteUploadAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -177,11 +177,28 @@ export default async function UploadPage({
                       )}
                     </td>
                     <td className="py-2.5 px-2 text-right">
-                      {r.status === "pending" && (
-                        <Link href={`/upload/${r.id}`} className="btn btn-outline btn-sm">
-                          Review
-                        </Link>
-                      )}
+                      <div className="inline-flex gap-1.5">
+                        {r.status === "pending" && (
+                          <Link href={`/upload/${r.id}`} className="btn btn-outline btn-sm">
+                            Review
+                          </Link>
+                        )}
+                        {r.status !== "processing" && (
+                          <form action={deleteUploadAction.bind(null, r.id)} className="inline">
+                            <button
+                              type="submit"
+                              className="btn btn-danger btn-sm"
+                              data-confirm={
+                                r.status === "success"
+                                  ? `Hapus upload "${r.filename}"?\n\n${r.tx_inserted} transaksi yang sudah masuk akan IKUT TERHAPUS dan saldo akun akan di-recalculate.\n\nAksi ini tidak bisa di-undo.`
+                                  : `Hapus upload "${r.filename}"?\n\nUpload ini masih ${r.status}, belum ada transaksi tersimpan.`
+                              }
+                            >
+                              Hapus
+                            </button>
+                          </form>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -190,6 +207,22 @@ export default async function UploadPage({
           </div>
         )}
       </div>
+
+      {/* Confirm dialog untuk tombol dengan data-confirm */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+            document.querySelectorAll('[data-confirm]').forEach(function (btn) {
+              btn.addEventListener('click', function (e) {
+                if (!window.confirm(btn.dataset.confirm)) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              });
+            });
+          `,
+        }}
+      />
     </>
   );
 }

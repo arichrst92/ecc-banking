@@ -1,11 +1,12 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { db, queryOne } from "@/lib/db";
+import { revalidatePath } from "next/cache";
+import { db, queryOne, tx } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import { detectAndParse } from "@/parsers/registry";
-import { saveUploadFile } from "@/lib/upload-storage";
+import { saveUploadFile, deleteUploadFile } from "@/lib/upload-storage";
 
 export async function uploadFileAction(formData: FormData) {
   const session = getSession();
@@ -126,4 +127,109 @@ export async function uploadFileAction(formData: FormData) {
   });
 
   redirect(`/upload/${uploadId}`);
+}
+
+/**
+ * Hapus upload + cascade hapus semua transaksi terkait + hapus file raw.
+ * Boleh untuk status: pending / success / failed (skip 'processing' karena race condition).
+ * Recalculate current_balance akun setelah hapus.
+ */
+export async function deleteUploadAction(uploadId: number) {
+  const session = getSession();
+  if (!session) redirect("/login");
+
+  const upload = await queryOne<{
+    id: number;
+    account_id: number;
+    branch_id: number;
+    filename: string;
+    status: "pending" | "processing" | "success" | "failed";
+    storage_path: string | null;
+    tx_inserted: number;
+  }>(
+    `SELECT id, account_id, branch_id, filename, status, storage_path, tx_inserted
+       FROM uploads WHERE id = $1`,
+    [uploadId]
+  );
+
+  if (!upload) {
+    redirect("/upload?err=Upload%20tidak%20ditemukan");
+  }
+
+  // RBAC
+  if (session.role === "branch" && upload.branch_id !== session.branchId) {
+    redirect("/upload?err=Akses%20ditolak");
+  }
+
+  // Jangan hapus saat sedang processing — race condition risk
+  if (upload.status === "processing") {
+    redirect(
+      `/upload?err=${encodeURIComponent(
+        "Upload sedang diproses. Tunggu sampai selesai sebelum dihapus."
+      )}`
+    );
+  }
+
+  // Count transaksi yang akan ter-delete (untuk audit log)
+  const txRow = await queryOne<{ count: string }>(
+    `SELECT COUNT(*)::TEXT AS count FROM transactions WHERE upload_id = $1`,
+    [uploadId]
+  );
+  const txCount = Number(txRow?.count ?? 0);
+
+  // Delete dalam 1 transaction:
+  // 1) Transactions (FK ON DELETE RESTRICT memaksa kita hapus dulu)
+  // 2) Uploads row
+  // 3) Recalculate accounts.current_balance dari sisa transaksi (kalau ada)
+  try {
+    await tx(async (client) => {
+      await client.query(`DELETE FROM transactions WHERE upload_id = $1`, [uploadId]);
+      await client.query(`DELETE FROM uploads WHERE id = $1`, [uploadId]);
+
+      // Set current_balance ke balance transaksi terakhir yg masih ada untuk akun ini
+      // (atau 0 kalau sudah tidak ada transaksi sama sekali)
+      await client.query(
+        `UPDATE accounts a
+            SET current_balance = COALESCE((
+                  SELECT t.balance FROM transactions t
+                   WHERE t.account_id = a.id AND t.balance IS NOT NULL
+                   ORDER BY t.tx_date DESC, t.id DESC
+                   LIMIT 1
+                ), 0),
+                last_synced_at = (
+                  SELECT MAX(processed_at) FROM uploads u
+                   WHERE u.account_id = a.id AND u.status = 'success'
+                )
+          WHERE a.id = $1`,
+        [upload.account_id]
+      );
+    });
+  } catch (e: any) {
+    redirect(`/upload?err=${encodeURIComponent("Gagal hapus: " + e.message)}`);
+  }
+
+  // Hapus file fisik (best-effort, tidak block kalau gagal)
+  await deleteUploadFile(upload.storage_path);
+
+  await logAudit(session, "delete_upload", {
+    target_table: "uploads",
+    target_id: uploadId,
+    details: {
+      filename: upload.filename,
+      status_at_delete: upload.status,
+      tx_deleted: txCount,
+      account_id: upload.account_id,
+    },
+  });
+
+  revalidatePath("/upload");
+  revalidatePath("/transaksi");
+  revalidatePath("/dashboard");
+  revalidatePath("/laporan");
+
+  redirect(
+    `/upload?msg=${encodeURIComponent(
+      `Upload "${upload.filename}" dihapus${txCount > 0 ? ` beserta ${txCount} transaksi terkait` : ""}`
+    )}`
+  );
 }
