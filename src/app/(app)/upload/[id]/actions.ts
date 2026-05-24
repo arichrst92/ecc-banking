@@ -8,6 +8,7 @@ import { logAudit } from "@/lib/audit";
 import { detectAndParse } from "@/parsers/registry";
 import { readUploadFile, deleteUploadFile } from "@/lib/upload-storage";
 import { categorize } from "@/parsers/categorizer";
+import { batchCategorize, type BatchCategorizeResult } from "@/parsers/ai-categorizer";
 import { computeDupHash } from "@/lib/dup-hash";
 import type { Category } from "@/lib/types";
 
@@ -27,6 +28,7 @@ export async function confirmUploadAction(uploadId: number) {
     closing_balance: string | null;
     date_from: string;
     date_to: string;
+    categorization_cache: BatchCategorizeResult | null;
   }>(`SELECT * FROM uploads WHERE id = $1`, [uploadId]);
 
   if (!upload) redirect("/upload?err=Upload%20tidak%20ditemukan");
@@ -77,6 +79,11 @@ export async function confirmUploadAction(uploadId: number) {
     `SELECT * FROM categories ORDER BY priority ASC, name ASC`
   );
 
+  // Cache categorization dari preview — kalau ada, pakai itu.
+  // Kalau tidak ada (skip preview / cache kosong), fallback ke keyword categorize.
+  const cache = upload.categorization_cache;
+  let aiCatStats = { ai: 0, keyword: 0, cache_hit: 0 };
+
   // Insert dalam 1 transaction (DB-level)
   let inserted = 0;
   let duplicates = 0;
@@ -87,7 +94,6 @@ export async function confirmUploadAction(uploadId: number) {
   try {
     await tx(async (client) => {
       for (const t of parsed.transactions) {
-        const catId = categorize(t.description_normalized, t.direction, categories);
         const dupHash = computeDupHash(
           upload.account_id,
           t.tx_date,
@@ -95,6 +101,19 @@ export async function confirmUploadAction(uploadId: number) {
           t.credit,
           t.description_normalized
         );
+
+        // Lookup category dari cache atau fallback keyword
+        let catId: number;
+        const cls = cache?.classifications?.[dupHash];
+        if (cls) {
+          catId = cls.category_id;
+          aiCatStats.cache_hit++;
+          if (cls.method === "ai") aiCatStats.ai++;
+          else aiCatStats.keyword++;
+        } else {
+          catId = categorize(t.description_normalized, t.direction, categories);
+          aiCatStats.keyword++;
+        }
 
         const r = await client.query(
           `INSERT INTO transactions (
@@ -163,15 +182,23 @@ export async function confirmUploadAction(uploadId: number) {
   await logAudit(session, "upload_confirmed", {
     target_table: "uploads",
     target_id: uploadId,
-    details: { inserted, duplicates, tx_count_file: parsed.transactions.length },
+    details: {
+      inserted,
+      duplicates,
+      tx_count_file: parsed.transactions.length,
+      categorization: aiCatStats,
+      categorization_method: cache?.method ?? "keyword",
+    },
   });
 
   revalidatePath("/upload");
   revalidatePath("/transaksi");
   revalidatePath("/dashboard");
+  revalidatePath("/laporan");
   redirect(
     `/upload?msg=${encodeURIComponent(
-      `${inserted} transaksi disimpan${duplicates > 0 ? `, ${duplicates} duplikat di-skip` : ""}`
+      `${inserted} transaksi disimpan${duplicates > 0 ? `, ${duplicates} duplikat di-skip` : ""}` +
+      (aiCatStats.ai > 0 ? ` · ${aiCatStats.ai} di-AI categorize` : "")
     )}`
   );
 }

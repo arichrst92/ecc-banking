@@ -88,9 +88,17 @@ export async function detectAndParse(
 
   // ── Step 3: LLM bootstrap ──
   if (!options.allow_llm_fallback) {
+    const hasKey = !!process.env.ANTHROPIC_API_KEY;
+    if (!hasKey) {
+      throw new Error(
+        "Format file tidak dikenal & ANTHROPIC_API_KEY belum di-set di .env.local. " +
+        "Tambahkan key dari console.anthropic.com → restart `npm run dev` → upload ulang. " +
+        "Atau bangun format profile manual di Kelola Format Parser."
+      );
+    }
     throw new Error(
-      "Format file tidak dikenal. Tidak ada adapter hardcoded maupun profile aktif yang cocok. " +
-      "Aktifkan LLM fallback atau bangun profile manual."
+      "Format file tidak dikenal. Tidak ada adapter hardcoded atau profile aktif yang cocok. " +
+      "LLM fallback di-disable di context ini (mis. saat confirm re-parse)."
     );
   }
 

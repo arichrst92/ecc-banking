@@ -27,6 +27,19 @@ type StatRow = {
   tx_count: number;
 };
 
+type SegmentRow = {
+  branch_id: number;
+  branch_name: string;
+  segment_id: number;
+  segment_name: string;
+  currency: string;
+  total_balance: string;
+  month_in: string;
+  month_out: string;
+  account_count: number;
+  sub_count: number;
+};
+
 export default async function DashboardPage() {
   const session = getSession()!;
   const branchFilter = session.role === "branch" && session.branchId
@@ -97,6 +110,36 @@ export default async function DashboardPage() {
       FROM a_total a
       FULL OUTER JOIN t_month t ON a.currency = t.currency
      ORDER BY currency
+  `);
+
+  // Per Tipe Dana (segments) per cabang per currency
+  const segmentRows = await query<SegmentRow>(`
+    SELECT b.id AS branch_id, b.name AS branch_name,
+           s.id AS segment_id, s.name AS segment_name,
+           COALESCE(a.currency, 'IDR') AS currency,
+           COALESCE(SUM(a.current_balance), 0)::TEXT AS total_balance,
+           COUNT(DISTINCT a.id)::INT AS account_count,
+           COUNT(DISTINCT ss.id)::INT AS sub_count,
+           COALESCE((
+             SELECT SUM(t.credit) FROM transactions t
+              WHERE t.account_id = ANY(ARRAY_AGG(a.id) FILTER (WHERE a.id IS NOT NULL))
+                AND t.tx_date >= date_trunc('month', CURRENT_DATE)
+                AND t.archived_at IS NULL
+           ), 0)::TEXT AS month_in,
+           COALESCE((
+             SELECT SUM(t.debit) FROM transactions t
+              WHERE t.account_id = ANY(ARRAY_AGG(a.id) FILTER (WHERE a.id IS NOT NULL))
+                AND t.tx_date >= date_trunc('month', CURRENT_DATE)
+                AND t.archived_at IS NULL
+           ), 0)::TEXT AS month_out
+      FROM branches b
+      JOIN segments s ON s.branch_id = b.id
+      LEFT JOIN sub_segments ss ON ss.segment_id = s.id
+      LEFT JOIN accounts a ON a.sub_segment_id = ss.id AND a.status = 'aktif'
+     WHERE b.status = 'aktif' AND s.status = 'aktif' ${branchFilter}
+     GROUP BY b.id, b.name, s.id, s.name, a.currency
+     HAVING COUNT(a.id) > 0
+     ORDER BY b.name, s.display_order, s.name
   `);
 
   // Branch info kalau role=branch
@@ -179,7 +222,7 @@ export default async function DashboardPage() {
       })}
 
       {/* Per Cabang */}
-      <div className="card">
+      <div className="card mb-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold text-[14px]">
             {session.role === "global" ? "Per Cabang" : "Rekening Cabang Anda"}
@@ -240,6 +283,85 @@ export default async function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Per Tipe Dana */}
+      {segmentRows.length > 0 && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="font-semibold text-[14px]">Per Tipe Dana</h3>
+              <p className="text-[11px] text-ink-3 mt-0.5">
+                Breakdown saldo + arus kas bulan ini per Tipe Dana di setiap cabang
+              </p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="border-b border-line">
+                  {session.role === "global" && (
+                    <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Cabang</th>
+                  )}
+                  <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Tipe Dana</th>
+                  <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Cur</th>
+                  <th className="text-right py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Saldo</th>
+                  <th className="text-right py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Bulan In</th>
+                  <th className="text-right py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Bulan Out</th>
+                  <th className="text-right py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Sub / Rek.</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {segmentRows.map((s, i) => {
+                  const prevBranch = i > 0 ? segmentRows[i - 1].branch_id : null;
+                  const isBranchBoundary = prevBranch !== null && prevBranch !== s.branch_id;
+                  return (
+                    <tr
+                      key={`${s.branch_id}-${s.segment_id}-${s.currency}`}
+                      className={`border-b border-line hover:bg-cream ${
+                        isBranchBoundary ? "border-t-2 border-t-brand-orange/20" : ""
+                      }`}
+                    >
+                      {session.role === "global" && (
+                        <td className="py-2 px-2 text-[11px] text-ink-2">
+                          {prevBranch !== s.branch_id ? s.branch_name : (
+                            <span className="text-ink-3">↳</span>
+                          )}
+                        </td>
+                      )}
+                      <td className="py-2 px-2 font-medium">{s.segment_name}</td>
+                      <td className="py-2 px-2 text-ink-3 font-mono text-[11px]">{s.currency}</td>
+                      <td className="py-2 px-2 text-right font-semibold">
+                        {formatMoney(s.total_balance, s.currency)}
+                      </td>
+                      <td className="py-2 px-2 text-right text-good">
+                        {formatMoney(s.month_in, s.currency)}
+                      </td>
+                      <td className="py-2 px-2 text-right text-bad-2">
+                        {formatMoney(s.month_out, s.currency)}
+                      </td>
+                      <td className="py-2 px-2 text-right text-ink-2 text-[11px]">
+                        {s.sub_count} sub · {s.account_count} rek
+                      </td>
+                      <td className="py-2 px-2 text-right">
+                        {session.role === "global" && (
+                          <Link
+                            href={`/cabang/${s.branch_id}/tipe-dana/${s.segment_id}`}
+                            className="btn btn-outline btn-sm"
+                          >
+                            Kelola
+                          </Link>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </>
   );
 }

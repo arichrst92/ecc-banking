@@ -2,10 +2,13 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Topbar } from "@/components/topbar";
 import { getSession } from "@/lib/session";
-import { queryOne } from "@/lib/db";
+import { db, queryOne, query } from "@/lib/db";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { readUploadFile } from "@/lib/upload-storage";
 import { detectAndParse } from "@/parsers/registry";
+import { batchCategorize, type BatchCategorizeResult } from "@/parsers/ai-categorizer";
+import { computeDupHash } from "@/lib/dup-hash";
+import type { Category } from "@/lib/types";
 import { confirmUploadAction, cancelUploadAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +40,10 @@ type UploadRow = {
   account_currency: string | null;
   branch_name: string;
   branch_code: string;
+  segment_name: string;
+  segment_id: number;
+  sub_name: string;
+  sub_id: number;
 };
 
 export default async function UploadPreviewPage({
@@ -59,9 +66,13 @@ export default async function UploadPreviewPage({
             u.tx_count, u.uploaded_at,
             a.bank, a.account_number, a.account_holder, a.purpose,
             a.currency AS account_currency,
-            b.name AS branch_name, b.code AS branch_code
+            b.name AS branch_name, b.code AS branch_code,
+            s.id AS segment_id, s.name AS segment_name,
+            ss.id AS sub_id, ss.name AS sub_name
        FROM uploads u
        JOIN accounts a ON a.id = u.account_id
+       JOIN sub_segments ss ON ss.id = a.sub_segment_id
+       JOIN segments s ON s.id = ss.segment_id
        JOIN branches b ON b.id = u.branch_id
       WHERE u.id = $1`,
     [uploadId]
@@ -82,21 +93,53 @@ export default async function UploadPreviewPage({
     redirect(`/upload?err=${encodeURIComponent(`Upload ${u.id} gagal — silakan upload ulang`)}`);
   }
 
-  // Read file dan parse ulang untuk preview sample transaksi
+  // Read file dan parse ulang untuk preview semua transaksi + AI categorize
   type SampleTx = {
-    tx_date: string; description: string; debit: number; credit: number;
+    tx_date: string; tx_time: string | null; description: string;
+    description_normalized: string; debit: number; credit: number;
     balance: number | null; direction: "in" | "out";
   };
   let sampleTxs: SampleTx[] = [];
   let parseError: string | null = null;
+  let catCache: BatchCategorizeResult | null = null;
+  let catError: string | null = null;
+
   if (u.storage_path) {
     try {
       const content = await readUploadFile(u.storage_path);
       const detected = await detectAndParse(content, u.filename, {
         actor_role: session.role,
-        allow_llm_fallback: false, // pas preview re-parse, jangan call LLM
+        allow_llm_fallback: false,
       });
       sampleTxs = detected.result.transactions;
+
+      // Load categories untuk classification
+      const categories = await query<Category>(
+        `SELECT * FROM categories ORDER BY priority ASC, name ASC`
+      );
+
+      // Check cache di uploads row
+      const cachedRow = await queryOne<{ categorization_cache: BatchCategorizeResult | null }>(
+        `SELECT categorization_cache FROM uploads WHERE id = $1`, [u.id]
+      );
+      if (cachedRow?.categorization_cache) {
+        catCache = cachedRow.categorization_cache;
+      } else {
+        // Belum ada cache: jalankan batch categorize (AI atau keyword fallback)
+        try {
+          catCache = await batchCategorize(u.account_id, sampleTxs, categories);
+          // Persist cache + cost
+          await db.query(
+            `UPDATE uploads
+                SET categorization_cache = $1::jsonb,
+                    ai_categorization_cost_usd = $2
+              WHERE id = $3`,
+            [JSON.stringify(catCache), catCache.cost_usd.toFixed(4), u.id]
+          );
+        } catch (e: any) {
+          catError = e.message ?? String(e);
+        }
+      }
     } catch (e: any) {
       parseError = e.message ?? String(e);
     }
@@ -172,13 +215,37 @@ export default async function UploadPreviewPage({
 
         <div className="mt-4 pt-3 border-t border-[#b8ddd8]">
           <div className="text-[11px] uppercase tracking-wider text-ink-3 font-semibold mb-2">
-            Rekening yang akan menerima data
+            Path Lokasi Dana
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap text-[12px] mb-3 bg-white/60 rounded-lg px-3 py-2">
+            <Link href={`/cabang/${u.branch_id}`} className="font-medium text-ink hover:text-brand-orange">
+              {u.branch_name}
+            </Link>
+            <span className="text-ink-3">›</span>
+            <Link
+              href={`/cabang/${u.branch_id}/tipe-dana/${u.segment_id}`}
+              className="font-medium text-ink hover:text-brand-orange"
+            >
+              {u.segment_name}
+            </Link>
+            <span className="text-ink-3">›</span>
+            <Link
+              href={`/cabang/${u.branch_id}/tipe-dana/${u.segment_id}/sub/${u.sub_id}`}
+              className="font-medium text-ink hover:text-brand-orange"
+            >
+              {u.sub_name}
+            </Link>
+            <span className="text-ink-3">›</span>
+            <span className="font-semibold text-brand-orange">{u.bank} {u.account_number.slice(-4)}</span>
+          </div>
+
+          <div className="text-[11px] uppercase tracking-wider text-ink-3 font-semibold mb-2">
+            Detail Rekening
           </div>
           <div className="flex items-center gap-2 flex-wrap text-[13px]">
             <span className="font-semibold">{u.bank} — {u.account_number}</span>
             <span className="text-ink-2">a.n. {u.account_holder}</span>
             <span className="chip chip-purple">📌 {u.purpose}</span>
-            <span className="chip chip-navy">{u.branch_name} ({u.branch_code})</span>
             <span className="chip chip-amber">{u.currency}</span>
           </div>
         </div>
@@ -246,48 +313,129 @@ export default async function UploadPreviewPage({
         </div>
       )}
 
-      {/* Sample transactions */}
+      {/* Categorization status banner */}
+      {catError && (
+        <div className="card bg-[#fef3f2] border-[#f5c5c2] mb-4">
+          <p className="text-[12px] text-bad-2">
+            <strong>Kategorisasi gagal:</strong> {catError}
+            <br />
+            <span className="text-[11px]">
+              Saat confirm, sistem akan fallback ke keyword-based categorization. Cek ANTHROPIC_API_KEY di .env.local.
+            </span>
+          </p>
+        </div>
+      )}
+
+      {catCache && (
+        <div className={`card mb-4 ${
+          catCache.method === "ai" ? "bg-[#eef3fd] border-[#c5d4f7]" : "bg-[#fef7e8] border-[#f5d98a]"
+        }`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <h3 className="font-semibold text-[13px] mb-1">
+                {catCache.method === "ai" ? "🤖 Kategorisasi AI" : "🔤 Kategorisasi Keyword (fallback)"}
+              </h3>
+              <p className="text-[11px] text-ink-2">
+                {catCache.method === "ai"
+                  ? `Diklasifikasi via ${catCache.model} · ${catCache.input_tokens} in / ${catCache.output_tokens} out tokens · cost $${catCache.cost_usd.toFixed(4)}`
+                  : "ANTHROPIC_API_KEY tidak tersedia atau AI gagal. Pakai keyword matching dari Kategori — bisa di-review per transaksi setelah confirm."}
+                . Cache tersimpan di DB, confirm tidak akan re-run AI.
+              </p>
+            </div>
+            {(() => {
+              const aiCount = Object.values(catCache.classifications).filter((c) => c.method === "ai").length;
+              const kwCount = Object.values(catCache.classifications).filter((c) => c.method === "keyword").length;
+              return (
+                <div className="text-right text-[10px] text-ink-3 shrink-0">
+                  <div>{aiCount} via AI</div>
+                  <div>{kwCount} via keyword</div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* All transactions with classification */}
       <div className="card mb-4">
-        <h3 className="font-semibold text-[14px] mb-3">
-          Preview Transaksi ({sampleTxs.length} parsed dari file)
-        </h3>
-        <div className="overflow-x-auto">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-[14px]">
+            Semua Transaksi ({sampleTxs.length} parsed)
+          </h3>
+          <div className="text-[11px] text-ink-3">
+            Total: <span className="text-good font-semibold">
+              +{formatMoney(sampleTxs.reduce((s, t) => s + t.credit, 0), u.currency)}
+            </span>
+            {" / "}
+            <span className="text-bad-2 font-semibold">
+              −{formatMoney(sampleTxs.reduce((s, t) => s + t.debit, 0), u.currency)}
+            </span>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto border border-line rounded-lg">
           <table className="w-full text-[12px]">
-            <thead>
+            <thead className="sticky top-0 bg-white z-10">
               <tr className="border-b border-line">
+                <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">#</th>
                 <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Tanggal</th>
                 <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Keterangan</th>
+                <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Kategori</th>
                 <th className="text-right py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Debit</th>
                 <th className="text-right py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Kredit</th>
                 <th className="text-right py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Saldo</th>
               </tr>
             </thead>
             <tbody>
-              {sampleTxs.slice(0, 20).map((t, i) => (
-                <tr key={i} className="border-b border-line">
-                  <td className="py-1.5 px-2 text-ink-3 whitespace-nowrap">{formatDate(t.tx_date)}</td>
-                  <td className="py-1.5 px-2 text-ink-2 text-[11px]">
-                    <span className="line-clamp-1" title={t.description}>{t.description}</span>
-                  </td>
-                  <td className="py-1.5 px-2 text-right text-bad-2">
-                    {t.debit > 0 ? formatMoney(t.debit, u.currency) : ""}
-                  </td>
-                  <td className="py-1.5 px-2 text-right text-good">
-                    {t.credit > 0 ? formatMoney(t.credit, u.currency) : ""}
-                  </td>
-                  <td className="py-1.5 px-2 text-right text-ink-3">
-                    {t.balance !== null ? formatMoney(t.balance, u.currency) : "—"}
-                  </td>
-                </tr>
-              ))}
+              {sampleTxs.map((t, i) => {
+                const hash = computeDupHash(
+                  u.account_id, t.tx_date, t.debit, t.credit, t.description_normalized
+                );
+                const cls = catCache?.classifications[hash];
+                return (
+                  <tr key={i} className="border-b border-line hover:bg-cream">
+                    <td className="py-1.5 px-2 text-ink-3 text-[10px]">{i + 1}</td>
+                    <td className="py-1.5 px-2 text-ink-3 whitespace-nowrap">
+                      {formatDate(t.tx_date)}
+                      {t.tx_time && (
+                        <div className="text-[9px] text-ink-3">{t.tx_time}</div>
+                      )}
+                    </td>
+                    <td className="py-1.5 px-2 text-ink-2 text-[11px] max-w-md">
+                      <span className="line-clamp-2" title={t.description}>{t.description}</span>
+                    </td>
+                    <td className="py-1.5 px-2">
+                      {cls ? (
+                        <div title={`${cls.method === "ai" ? "🤖 AI" : "🔤 Keyword"} · confidence ${(cls.confidence * 100).toFixed(0)}%\n${cls.reason}`}>
+                          <span className="chip" style={{
+                            background: cls.confidence >= 0.7 ? "#eef8f5" : cls.confidence >= 0.5 ? "#fef7e8" : "#fef3f2",
+                            color: cls.confidence >= 0.7 ? "#1a6b5a" : cls.confidence >= 0.5 ? "#8a5a0a" : "#b02820",
+                          }}>
+                            {cls.method === "ai" ? "🤖 " : ""}{cls.category_name}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-ink-3 italic">—</span>
+                      )}
+                    </td>
+                    <td className="py-1.5 px-2 text-right text-bad-2 whitespace-nowrap">
+                      {t.debit > 0 ? formatMoney(t.debit, u.currency) : ""}
+                    </td>
+                    <td className="py-1.5 px-2 text-right text-good whitespace-nowrap">
+                      {t.credit > 0 ? formatMoney(t.credit, u.currency) : ""}
+                    </td>
+                    <td className="py-1.5 px-2 text-right text-ink-3 whitespace-nowrap text-[11px]">
+                      {t.balance !== null ? formatMoney(t.balance, u.currency) : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-          {sampleTxs.length > 20 && (
-            <p className="text-[11px] text-ink-3 mt-2 text-center">
-              ... dan {sampleTxs.length - 20} transaksi lainnya
-            </p>
-          )}
         </div>
+        <p className="text-[11px] text-ink-3 mt-2">
+          Tabel scrollable. Hover chip kategori untuk lihat alasan klasifikasi. Bisa re-categorize manual per transaksi setelah confirm di menu Transaksi.
+        </p>
       </div>
 
       {/* Action buttons */}

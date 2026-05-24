@@ -16,8 +16,12 @@ type RecentUpload = {
   parser_name: string;
   uploaded_at: string;
   branch_name: string;
+  branch_code: string;
+  segment_name: string;
+  sub_name: string;
   bank: string;
   account_number: string;
+  account_purpose: string;
   currency: string;
   opening_balance: string | null;
   closing_balance: string | null;
@@ -36,9 +40,13 @@ export default async function UploadPage({
   const recent = await query<RecentUpload>(
     `SELECT u.id, u.filename, u.status, u.tx_inserted, u.tx_duplicates, u.parser_name,
             u.uploaded_at, u.currency, u.opening_balance, u.closing_balance,
-            b.name AS branch_name, a.bank, a.account_number
+            b.name AS branch_name, b.code AS branch_code,
+            s.name AS segment_name, ss.name AS sub_name,
+            a.bank, a.account_number, a.purpose AS account_purpose
        FROM uploads u
        JOIN accounts a ON a.id = u.account_id
+       JOIN sub_segments ss ON ss.id = a.sub_segment_id
+       JOIN segments s ON s.id = ss.segment_id
        JOIN branches b ON b.id = u.branch_id
        ${where}
        ORDER BY u.uploaded_at DESC
@@ -129,7 +137,7 @@ export default async function UploadPage({
               <thead>
                 <tr className="border-b border-line">
                   <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Waktu</th>
-                  <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Cabang / Rekening</th>
+                  <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Path Akun</th>
                   <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">File</th>
                   <th className="text-right py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Saldo Awal → Akhir</th>
                   <th className="text-center py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Status</th>
@@ -140,12 +148,19 @@ export default async function UploadPage({
               <tbody>
                 {recent.map((r) => (
                   <tr key={r.id} className="border-b border-line hover:bg-cream">
-                    <td className="py-2.5 px-2 text-ink-3">{formatDateTime(r.uploaded_at)}</td>
-                    <td className="py-2.5 px-2">
-                      <div className="font-medium">{r.branch_name}</div>
-                      <div className="text-[10px] text-ink-3">
-                        {r.bank} · {r.account_number} · {r.currency}
+                    <td className="py-2.5 px-2 text-ink-3 whitespace-nowrap">{formatDateTime(r.uploaded_at)}</td>
+                    <td className="py-2.5 px-2 text-[11px]">
+                      <div className="font-medium text-ink">{r.branch_name}</div>
+                      <div className="text-ink-2 leading-tight">
+                        <span className="text-ink-3">›</span> {r.segment_name}
                       </div>
+                      <div className="text-ink-2 leading-tight">
+                        <span className="text-ink-3">›</span> {r.sub_name}
+                      </div>
+                      <div className="text-ink-2 leading-tight font-medium">
+                        <span className="text-ink-3">›</span> {r.bank} {r.account_number.slice(-4)}
+                      </div>
+                      <div className="text-[10px] text-ink-3 italic">{r.account_purpose} · {r.currency}</div>
                     </td>
                     <td className="py-2.5 px-2 text-ink-2 text-[11px]">
                       <div>{r.filename}</div>

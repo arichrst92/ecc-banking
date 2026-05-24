@@ -6,11 +6,9 @@ import { query } from "@/lib/db";
 import { formatMoney, formatDate } from "@/lib/format";
 import { ChartLine } from "@/components/chart-line";
 import { ChartDoughnut } from "@/components/chart-doughnut";
+import { getCascadeOptions, buildTxWhere } from "@/lib/hierarchy";
 
 export const dynamic = "force-dynamic";
-
-type Branch = { id: number; name: string; code: string };
-type Account = { id: number; bank: string; account_number: string; purpose: string; currency: string | null };
 
 function getDefaultPeriod() {
   const now = new Date();
@@ -23,7 +21,10 @@ function getDefaultPeriod() {
 export default async function LaporanPage({
   searchParams,
 }: {
-  searchParams: { branch_id?: string; account_id?: string; from?: string; to?: string };
+  searchParams: {
+    branch_id?: string; segment_id?: string; sub_id?: string; account_id?: string;
+    from?: string; to?: string;
+  };
 }) {
   const session = getSession()!;
 
@@ -34,29 +35,18 @@ export default async function LaporanPage({
 
   // RBAC: branch role locked to own branch
   const filterBranchId = session.role === "branch"
-    ? session.branchId
+    ? session.branchId!
     : (searchParams.branch_id ? Number(searchParams.branch_id) : null);
-
+  const filterSegmentId = searchParams.segment_id ? Number(searchParams.segment_id) : null;
+  const filterSubId = searchParams.sub_id ? Number(searchParams.sub_id) : null;
   const filterAccountId = searchParams.account_id ? Number(searchParams.account_id) : null;
 
-  // Branches (untuk filter dropdown)
-  const branches = await query<Branch>(
-    session.role === "branch"
-      ? `SELECT id, name, code FROM branches WHERE id = $1`
-      : `SELECT id, name, code FROM branches WHERE status='aktif' ORDER BY name`,
-    session.role === "branch" ? [session.branchId] : []
+  // Cascade options
+  const cascade = await getCascadeOptions(
+    { branchId: filterBranchId, segmentId: filterSegmentId, subId: filterSubId },
+    session.role,
+    session.branchId
   );
-
-  // Accounts (untuk tab bar — hanya kalau cabang sudah dipilih)
-  const accounts = filterBranchId
-    ? await query<Account>(
-        `SELECT id, bank, account_number, purpose, currency
-           FROM accounts
-          WHERE branch_id = $1 AND status = 'aktif'
-          ORDER BY bank, account_number`,
-        [filterBranchId]
-      )
-    : [];
 
   // Build WHERE clause untuk semua query
   const whereParts: string[] = [
@@ -64,14 +54,15 @@ export default async function LaporanPage({
     `t.archived_at IS NULL`,
   ];
   const params: unknown[] = [period.from, period.to];
-  if (filterBranchId) {
-    params.push(filterBranchId);
-    whereParts.push(`t.branch_id = $${params.length}`);
-  }
-  if (filterAccountId) {
-    params.push(filterAccountId);
-    whereParts.push(`t.account_id = $${params.length}`);
-  }
+
+  const hier = buildTxWhere(
+    { branchId: filterBranchId ?? undefined, segmentId: filterSegmentId ?? undefined,
+      subId: filterSubId ?? undefined, accountId: filterAccountId ?? undefined },
+    params.length + 1
+  );
+  whereParts.push(...hier.whereParts);
+  params.push(...hier.params);
+
   const whereSql = whereParts.join(" AND ");
 
   // Summary per currency
@@ -125,8 +116,52 @@ export default async function LaporanPage({
     params
   );
 
+  // Per Tipe Dana (segment) breakdown
+  type SegRow = {
+    branch_id: number;
+    branch_name: string;
+    segment_id: number;
+    segment_name: string;
+    currency: string;
+    total_in: string;
+    total_out: string;
+    tx_count: number;
+  };
+  const bySegment = await query<SegRow>(
+    `SELECT b.id AS branch_id, b.name AS branch_name,
+            s.id AS segment_id, s.name AS segment_name,
+            t.currency,
+            COALESCE(SUM(t.credit), 0)::TEXT AS total_in,
+            COALESCE(SUM(t.debit), 0)::TEXT AS total_out,
+            COUNT(*)::INT AS tx_count
+       FROM transactions t
+       JOIN accounts a ON a.id = t.account_id
+       JOIN sub_segments ss ON ss.id = a.sub_segment_id
+       JOIN segments s ON s.id = ss.segment_id
+       JOIN branches b ON b.id = t.branch_id
+      WHERE ${whereSql}
+      GROUP BY b.id, b.name, s.id, s.name, t.currency
+      ORDER BY b.name, s.display_order, s.name`,
+    params
+  );
+
   // Buat line chart data per currency
   const currencies = Array.from(new Set(daily.map((d) => d.currency))).sort();
+
+  // Helper preserve QS waktu klik tab rekening
+  const preserveQS = (overrides: Record<string, string | number | null>) => {
+    const qs = new URLSearchParams();
+    qs.set("from", period.from);
+    qs.set("to", period.to);
+    if (session.role === "global" && filterBranchId) qs.set("branch_id", String(filterBranchId));
+    if (filterSegmentId) qs.set("segment_id", String(filterSegmentId));
+    if (filterSubId) qs.set("sub_id", String(filterSubId));
+    Object.entries(overrides).forEach(([k, v]) => {
+      if (v === null || v === undefined || v === "") qs.delete(k);
+      else qs.set(k, String(v));
+    });
+    return `/laporan?${qs}`;
+  };
 
   return (
     <>
@@ -136,67 +171,79 @@ export default async function LaporanPage({
         subtitle={`Periode ${formatDate(period.from)} — ${formatDate(period.to)}`}
       />
 
-      {/* Filter bar */}
+      {/* Filter bar — cascade */}
       <div className="card mb-4">
-        <form className="flex flex-wrap items-end gap-3">
+        <div className="text-[10px] uppercase tracking-wider text-ink-3 font-semibold mb-3">
+          Filter Lokasi Dana + Periode
+        </div>
+        <form className="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
           {session.role === "global" && (
-            <div className="flex-1 min-w-[180px]">
+            <div>
               <label className="form-label">Cabang</label>
-              <select
-                name="branch_id"
-                className="form-select"
-                defaultValue={filterBranchId ?? ""}
-              >
+              <select name="branch_id" className="form-select" defaultValue={filterBranchId ?? ""}>
                 <option value="">— Semua (Konsolidasi) —</option>
-                {branches.map((b) => (
+                {cascade.branches.map((b) => (
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
               </select>
             </div>
           )}
-          <div className="flex-1 min-w-[160px]">
+          <div>
+            <label className="form-label">Tipe Dana</label>
+            <select name="segment_id" className="form-select" defaultValue={filterSegmentId ?? ""}
+              disabled={!filterBranchId && cascade.segments.length === 0}>
+              <option value="">— Semua —</option>
+              {cascade.segments.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Sub Tipe Dana</label>
+            <select name="sub_id" className="form-select" defaultValue={filterSubId ?? ""}
+              disabled={!filterSegmentId}>
+              <option value="">— Semua —</option>
+              {cascade.subs.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+          <div></div>
+          <div>
             <label className="form-label">Dari</label>
             <input type="date" name="from" className="form-input" defaultValue={period.from} />
           </div>
-          <div className="flex-1 min-w-[160px]">
+          <div>
             <label className="form-label">Sampai</label>
             <input type="date" name="to" className="form-input" defaultValue={period.to} />
           </div>
-          <div className="flex gap-2">
-            <button type="submit" className="btn btn-primary">Terapkan</button>
+          <div className="col-span-2 flex justify-end gap-2">
             <Link href="/laporan" className="btn btn-outline">Reset</Link>
+            <button type="submit" className="btn btn-primary">Terapkan Filter</button>
           </div>
         </form>
       </div>
 
       {/* Tab rekening (kalau cabang dipilih) */}
-      {filterBranchId && accounts.length > 0 && (
+      {filterBranchId && cascade.accounts.length > 0 && (
         <div className="card mb-4">
           <div className="text-[10px] uppercase tracking-wider text-ink-3 font-semibold mb-2">
-            Rekening — pilih untuk filter
+            Rekening — pilih untuk drill-down
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
-              href={`/laporan?branch_id=${filterBranchId}&from=${period.from}&to=${period.to}`}
-              className={
-                !filterAccountId
-                  ? "btn btn-primary btn-sm"
-                  : "btn btn-outline btn-sm"
-              }
+              href={preserveQS({ account_id: null })}
+              className={!filterAccountId ? "btn btn-primary btn-sm" : "btn btn-outline btn-sm"}
             >
               Semua Rekening
             </Link>
-            {accounts.map((a) => {
+            {cascade.accounts.map((a) => {
               const last4 = a.account_number.slice(-4);
               return (
                 <Link
                   key={a.id}
-                  href={`/laporan?branch_id=${filterBranchId}&account_id=${a.id}&from=${period.from}&to=${period.to}`}
-                  className={
-                    filterAccountId === a.id
-                      ? "btn btn-primary btn-sm"
-                      : "btn btn-outline btn-sm"
-                  }
+                  href={preserveQS({ account_id: a.id })}
+                  className={filterAccountId === a.id ? "btn btn-primary btn-sm" : "btn btn-outline btn-sm"}
                 >
                   {a.bank} — {last4} · {a.purpose}
                 </Link>
@@ -205,6 +252,24 @@ export default async function LaporanPage({
           </div>
         </div>
       )}
+
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+            ['branch_id', 'segment_id', 'sub_id'].forEach(function (parent, i) {
+              const sel = document.querySelector('select[name="' + parent + '"]');
+              if (!sel) return;
+              sel.addEventListener('change', function () {
+                const children = ['segment_id', 'sub_id'].slice(i);
+                children.forEach(function (cname) {
+                  const c = document.querySelector('select[name="' + cname + '"]');
+                  if (c) c.value = '';
+                });
+              });
+            });
+          `,
+        }}
+      />
 
       {/* Report header per currency */}
       {summary.length === 0 ? (
@@ -381,6 +446,72 @@ export default async function LaporanPage({
                   </tbody>
                 </table>
               </div>
+
+              {/* Per Tipe Dana untuk currency ini */}
+              {(() => {
+                const segRowsForCur = bySegment.filter((sg) => sg.currency === s.currency);
+                if (segRowsForCur.length === 0) return null;
+                return (
+                  <div className="card mt-4">
+                    <h3 className="font-semibold text-[13px] mb-3">
+                      Rincian per Tipe Dana ({s.currency})
+                    </h3>
+                    <table className="w-full text-[12px]">
+                      <thead>
+                        <tr className="border-b border-line">
+                          {!filterBranchId && (
+                            <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Cabang</th>
+                          )}
+                          <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Tipe Dana</th>
+                          <th className="text-right py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Trx</th>
+                          <th className="text-right py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Pemasukan</th>
+                          <th className="text-right py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Pengeluaran</th>
+                          <th className="text-right py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Net</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {segRowsForCur.map((sg) => {
+                          const segIn = parseFloat(sg.total_in);
+                          const segOut = parseFloat(sg.total_out);
+                          const segNet = segIn - segOut;
+                          return (
+                            <tr key={`${sg.branch_id}-${sg.segment_id}`} className="border-b border-line hover:bg-cream">
+                              {!filterBranchId && (
+                                <td className="py-2 px-2 text-[11px] text-ink-2">{sg.branch_name}</td>
+                              )}
+                              <td className="py-2 px-2 font-medium">{sg.segment_name}</td>
+                              <td className="py-2 px-2 text-right text-ink-2">{sg.tx_count}</td>
+                              <td className="py-2 px-2 text-right text-good">
+                                {segIn > 0 ? formatMoney(segIn, s.currency) : "—"}
+                              </td>
+                              <td className="py-2 px-2 text-right text-bad-2">
+                                {segOut > 0 ? formatMoney(segOut, s.currency) : "—"}
+                              </td>
+                              <td className={`py-2 px-2 text-right font-semibold ${
+                                segNet >= 0 ? "text-good" : "text-bad-2"
+                              }`}>
+                                {segNet >= 0 ? "+" : ""}{formatMoney(segNet, s.currency)}
+                              </td>
+                              <td className="py-2 px-2 text-right">
+                                <Link
+                                  href={preserveQS({
+                                    branch_id: sg.branch_id,
+                                    segment_id: sg.segment_id,
+                                  })}
+                                  className="btn btn-outline btn-sm"
+                                >
+                                  Drill-down
+                                </Link>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
             </div>
           );
         })
