@@ -122,7 +122,7 @@ export default async function DashboardPage() {
             { label: "TOTAL SALDO", value: "Rp 0", cls: "" },
             { label: "PEMASUKAN BULAN INI", value: "Rp 0", cls: "text-good" },
             { label: "PENGELUARAN BULAN INI", value: "Rp 0", cls: "text-bad" },
-            { label: "SALDO BERSIH", value: "Rp 0", cls: "text-[#a07c20]" },
+            { label: "SALDO BERSIH", value: "Rp 0", cls: "text-brand-orange" },
           ].map((s) => (
             <div key={s.label} className="stat-card">
               <div className="text-[10px] uppercase tracking-wider text-ink-3 mb-1.5">{s.label}</div>

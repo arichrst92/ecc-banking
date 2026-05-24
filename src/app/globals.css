@@ -23,10 +23,11 @@
   .stat-card { @apply bg-white rounded-2xl border border-line shadow-card p-4; }
 
   .btn { @apply px-3 py-2 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5; }
-  .btn-primary { @apply bg-navy text-white hover:bg-navy-3; }
-  .btn-gold    { @apply bg-gold text-navy font-bold hover:bg-gold-2; }
+  .btn-primary { @apply bg-brand-black text-white hover:bg-brand-black2; }
+  .btn-gold    { @apply bg-brand-orange text-white font-bold hover:bg-brand-orange-2; }
   .btn-outline { @apply bg-transparent text-ink-2 border border-line hover:bg-cream; }
   .btn-danger  { @apply bg-[#fff0ef] text-bad-2 border border-[#f5c5c2] hover:bg-[#ffe0de]; }
+  .btn-success { @apply bg-[#e8f5f2] text-good border border-[#b8e0d8] hover:bg-[#d0ece7]; }
   .btn-sm      { @apply px-2.5 py-1.5 text-xs; }
 
   .form-input, .form-select, .form-textarea {

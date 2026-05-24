@@ -22,23 +22,26 @@ export function Sidebar({ role, branchName }: { role: "global" | "branch"; branc
   const items = NAV.filter((n) => !n.globalOnly || role === "global");
 
   return (
-    <nav className="w-[244px] bg-navy min-h-screen flex flex-col fixed left-0 top-0 bottom-0 z-50">
+    <nav className="w-[244px] bg-brand-black min-h-screen flex flex-col fixed left-0 top-0 bottom-0 z-50">
       <div className="px-[18px] py-5 border-b border-white/[0.07]">
-        <div className="flex items-center gap-2.5">
-          <div className="w-[34px] h-[34px] bg-gold rounded-lg flex items-center justify-center text-lg shrink-0">✝</div>
+        <div className="flex items-center gap-3">
+          <div className="w-[42px] h-[42px] bg-white rounded-xl flex items-center justify-center shrink-0 p-1 shadow-md">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/images/logo-ecc.webp" alt="ECC" className="max-w-full max-h-full object-contain" />
+          </div>
           <div className="flex flex-col">
-            <span className="text-[8px] text-white/35 tracking-[0.15em] uppercase">ECC Global Finance</span>
-            <span className="font-serif text-[15px] text-white leading-tight">Keuangan Gereja</span>
+            <span className="text-[8px] text-brand-yellow tracking-[0.15em] uppercase font-semibold">ECC Global Finance</span>
+            <span className="font-serif text-[14px] text-white leading-tight">Keuangan Gereja</span>
           </div>
         </div>
       </div>
 
-      <div className="mx-2.5 mt-2.5 px-3.5 py-2.5 bg-gold/[0.09] border border-gold/15 rounded-xl">
-        <div className="text-[9px] uppercase tracking-wider text-white/35 mb-0.5">Sesi aktif</div>
-        <div className="text-[13px] font-semibold text-gold-2">
+      <div className="mx-2.5 mt-2.5 px-3.5 py-2.5 bg-brand-orange/10 border border-brand-orange/25 rounded-xl">
+        <div className="text-[9px] uppercase tracking-wider text-white/40 mb-0.5">Sesi aktif</div>
+        <div className="text-[13px] font-semibold text-brand-yellow">
           {role === "global" ? "Global Admin" : branchName}
         </div>
-        <div className="text-[10px] text-white/35">{role === "global" ? "Semua Cabang" : "Akses cabang"}</div>
+        <div className="text-[10px] text-white/45">{role === "global" ? "Semua Cabang" : "Akses cabang"}</div>
       </div>
 
       <div className="flex-1 py-2.5 overflow-y-auto">
@@ -54,8 +57,8 @@ export function Sidebar({ role, branchName }: { role: "global" | "branch"; branc
               className={cn(
                 "flex items-center gap-2.5 px-[18px] py-2.5 text-[13px] font-medium border-l-2 border-transparent transition-colors",
                 pathname.startsWith(item.href)
-                  ? "text-gold-2 bg-gold/[0.08] border-l-gold"
-                  : "text-white/50 hover:text-white hover:bg-white/[0.04]"
+                  ? "text-brand-yellow bg-brand-orange/15 border-l-brand-orange"
+                  : "text-white/55 hover:text-white hover:bg-white/[0.04]"
               )}
             >
               {item.label}

@@ -1,9 +1,20 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "ECC Global Finance — Sistem Rekap Keuangan Gereja",
   description: "Manajemen mutasi rekening multi-cabang untuk gereja ECC",
+  icons: {
+    icon: [
+      { url: "/images/logo-ecc.webp", type: "image/webp" },
+    ],
+    shortcut: "/images/logo-ecc.webp",
+    apple: "/images/logo-ecc.webp",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0a0a0a", // brand black
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

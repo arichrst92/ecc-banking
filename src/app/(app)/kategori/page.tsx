@@ -8,9 +8,18 @@ import { createCategoryAction, updateCategoryAction, deleteCategoryAction } from
 
 export const dynamic = "force-dynamic";
 
+// Palette aligned dengan brand ECC (orange + yellow + komplementer)
 const COLOR_PALETTE = [
-  "#2e7d6e", "#c0392b", "#e67e22", "#8e44ad", "#2563eb",
-  "#0f1d3a", "#c9a84c", "#8a94a6", "#16a085", "#e91e63",
+  "#e85d10", // brand orange
+  "#fec736", // brand yellow
+  "#2e7d6e", // good green
+  "#c0392b", // red
+  "#2563eb", // info blue
+  "#8e44ad", // purple
+  "#0a0a0a", // brand black
+  "#16a085", // teal
+  "#e91e63", // pink
+  "#8a8a8a", // neutral gray
 ];
 
 export default async function KategoriPage({

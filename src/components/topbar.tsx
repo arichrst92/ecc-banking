@@ -14,8 +14,8 @@ export function Topbar({
         <span
           className={
             role === "global"
-              ? "bg-gold text-navy text-[9px] font-bold px-2 py-1 rounded-full uppercase tracking-wider"
-              : "bg-navy-3 text-white text-[9px] font-bold px-2 py-1 rounded-full uppercase tracking-wider"
+              ? "bg-brand-orange text-white text-[9px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider"
+              : "bg-brand-black text-brand-yellow text-[9px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider"
           }
         >
           {role === "global" ? "Global Admin" : "Cabang"}

@@ -253,12 +253,13 @@ export default async function LaporanPage({
 
           return (
             <div key={s.currency} className="mb-6">
-              {/* Header gradient */}
+              {/* Header gradient — brand dark dengan tint orange */}
               <div className="rounded-2xl p-7 mb-4 text-white relative overflow-hidden"
-                   style={{ background: "linear-gradient(135deg, #0f1d3a 0%, #1e3a6e 100%)" }}>
-                <div className="absolute -top-10 -right-10 w-44 h-44 rounded-full bg-gold/10" />
+                   style={{ background: "linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 70%, #2a1208 100%)" }}>
+                <div className="absolute -top-10 -right-10 w-44 h-44 rounded-full bg-brand-orange/15 blur-2xl" />
+                <div className="absolute -bottom-16 -left-10 w-56 h-56 rounded-full bg-brand-yellow/10 blur-3xl" />
                 <div className="relative">
-                  <div className="text-[10px] uppercase tracking-[0.12em] text-white/45 mb-1">
+                  <div className="text-[10px] uppercase tracking-[0.12em] text-brand-yellow mb-1 font-semibold">
                     Laporan Keuangan · {s.currency}
                   </div>
                   <h2 className="font-serif text-2xl font-light mb-0.5">
@@ -266,7 +267,7 @@ export default async function LaporanPage({
                       ? branches.find((b) => b.id === filterBranchId)?.name ?? "Cabang"
                       : "Konsolidasi Semua Cabang"}
                   </h2>
-                  <div className="text-[12px] text-white/50 mb-4">
+                  <div className="text-[12px] text-white/55 mb-4">
                     {formatDate(period.from)} — {formatDate(period.to)}
                   </div>
                   <div className="flex gap-7 flex-wrap">
@@ -292,7 +293,7 @@ export default async function LaporanPage({
                     </div>
                     <div>
                       <div className="text-[10px] text-white/50 mb-0.5">TRANSAKSI</div>
-                      <div className="text-[20px] font-bold">{s.tx_count}</div>
+                      <div className="text-[20px] font-bold text-brand-yellow">{s.tx_count}</div>
                     </div>
                   </div>
                 </div>
