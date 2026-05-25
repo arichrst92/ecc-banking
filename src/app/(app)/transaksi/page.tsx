@@ -379,21 +379,25 @@ export default async function TransaksiPage({
       <script
         dangerouslySetInnerHTML={{
           __html: `
+            // Auto-submit untuk select dropdown re-categorize per row
             document.querySelectorAll('[data-auto-submit]').forEach(function (sel) {
               sel.addEventListener('change', function () {
                 if (sel.form) sel.form.requestSubmit();
               });
             });
-            // Reset child filter saat parent berubah (UX hint, server tetap otoritas)
-            ['branch_id', 'segment_id', 'sub_id'].forEach(function (parent, i) {
+            // Cascade hierarchy: change parent → reset children + auto-submit form
+            ['branch_id', 'segment_id', 'sub_id', 'account_id'].forEach(function (parent, i) {
               const sel = document.querySelector('select[name="' + parent + '"]');
               if (!sel) return;
               sel.addEventListener('change', function () {
+                // Reset child filters dulu
                 const children = ['segment_id', 'sub_id', 'account_id'].slice(i);
                 children.forEach(function (cname) {
                   const c = document.querySelector('select[name="' + cname + '"]');
                   if (c) c.value = '';
                 });
+                // Auto-submit form supaya child dropdown bisa populate
+                if (sel.form) sel.form.requestSubmit();
               });
             });
           `,

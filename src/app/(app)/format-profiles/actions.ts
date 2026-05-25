@@ -37,29 +37,27 @@ export async function deleteProfileAction(profileId: number) {
   );
   if (!p) redirect("/format-profiles?err=Profile%20tidak%20ditemukan");
 
-  // Check uploads yang reference profile ini
+  // Count uploads yang reference (untuk info di toast)
+  // FK ON DELETE SET NULL — aman hapus, upload tetap ada, hanya kolom format_profile_id jadi NULL
   const ref = await queryOne<{ count: string }>(
     `SELECT COUNT(*)::TEXT AS count FROM uploads WHERE format_profile_id = $1`, [profileId]
   );
-  // FK SET NULL — aman hapus, tapi upload history kehilangan referensi
-  // Lebih aman: minta user disable saja
-  if (Number(ref?.count ?? 0) > 0) {
-    redirect(
-      `/format-profiles?err=${encodeURIComponent(
-        `Profile masih dipakai ${ref?.count} upload history. Disable saja (jangan hapus) supaya history tetap tertaut.`
-      )}`
-    );
-  }
+  const usageCount = Number(ref?.count ?? 0);
 
   await db.query(`DELETE FROM format_profiles WHERE id = $1`, [profileId]);
   await logAudit(session, "format_profile_delete", {
     target_table: "format_profiles",
     target_id: profileId,
-    details: { name: p.name },
+    details: { name: p.name, was_used_by_uploads: usageCount },
   });
 
   revalidatePath("/format-profiles");
-  redirect(`/format-profiles?msg=${encodeURIComponent(`Profile "${p.name}" dihapus`)}`);
+  redirect(
+    `/format-profiles?msg=${encodeURIComponent(
+      `Profile "${p.name}" dihapus` +
+      (usageCount > 0 ? ` (${usageCount} upload history kehilangan referensi parser)` : "")
+    )}`
+  );
 }
 
 export async function updateProfileConfigAction(profileId: number, formData: FormData) {

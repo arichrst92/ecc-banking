@@ -256,6 +256,7 @@ export default async function LaporanPage({
       <script
         dangerouslySetInnerHTML={{
           __html: `
+            // Cascade hierarchy: change parent → reset children + auto-submit form
             ['branch_id', 'segment_id', 'sub_id'].forEach(function (parent, i) {
               const sel = document.querySelector('select[name="' + parent + '"]');
               if (!sel) return;
@@ -265,6 +266,7 @@ export default async function LaporanPage({
                   const c = document.querySelector('select[name="' + cname + '"]');
                   if (c) c.value = '';
                 });
+                if (sel.form) sel.form.requestSubmit();
               });
             });
           `,

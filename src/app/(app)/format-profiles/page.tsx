@@ -5,6 +5,7 @@ import { getSession } from "@/lib/session";
 import { query } from "@/lib/db";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import type { FormatProfile } from "@/lib/types";
+import { LoadingButton } from "@/components/loading-button";
 import { toggleProfileStatusAction, deleteProfileAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -152,21 +153,38 @@ export default async function FormatProfilesPage({
                         </Link>
                         {p.status === "active" ? (
                           <form action={toggleProfileStatusAction.bind(null, p.id, "disabled")} className="inline">
-                            <button
-                              type="submit"
-                              className="btn btn-danger btn-sm"
-                              data-confirm={`Disable profile "${p.name}"? Upload format ini akan fallback ke LLM lagi (cost + latency).`}
+                            <LoadingButton
+                              variant="outline"
+                              size="sm"
+                              loadingText="..."
+                              confirm={`Disable profile "${p.name}"?\n\nUpload format ini akan fallback ke LLM lagi (cost + latency).`}
                             >
                               Disable
-                            </button>
+                            </LoadingButton>
                           </form>
                         ) : (
                           <form action={toggleProfileStatusAction.bind(null, p.id, "active")} className="inline">
-                            <button type="submit" className="btn btn-success btn-sm">
+                            <LoadingButton variant="success" size="sm" loadingText="...">
                               Aktifkan
-                            </button>
+                            </LoadingButton>
                           </form>
                         )}
+                        <form action={deleteProfileAction.bind(null, p.id)} className="inline">
+                          <LoadingButton
+                            variant="danger"
+                            size="sm"
+                            loadingText="Menghapus..."
+                            confirm={
+                              `Hapus profile "${p.name}" PERMANEN?\n\n` +
+                              (p.upload_count > 0
+                                ? `Profile ini sudah dipakai ${p.upload_count}× upload. Upload history TIDAK terhapus, tapi kolom referensi profile-nya akan jadi NULL.\n\n`
+                                : "") +
+                              `Aksi ini tidak bisa di-undo. Lanjut?`
+                            }
+                          >
+                            Hapus
+                          </LoadingButton>
+                        </form>
                       </div>
                     </td>
                   </tr>
@@ -177,20 +195,6 @@ export default async function FormatProfilesPage({
         </div>
       )}
 
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-            document.querySelectorAll('[data-confirm]').forEach(function (btn) {
-              btn.addEventListener('click', function (e) {
-                if (!window.confirm(btn.dataset.confirm)) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }
-              });
-            });
-          `,
-        }}
-      />
     </>
   );
 }
