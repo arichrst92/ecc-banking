@@ -202,29 +202,44 @@ export default async function TransaksiPage({
           )}
           <div>
             <label className="form-label">Tipe Dana</label>
-            <select name="segment_id" className="form-select" defaultValue={filterSegmentId ?? ""}
-              disabled={!filterBranchId && cascade.segments.length === 0}>
+            <select name="segment_id" className="form-select" defaultValue={filterSegmentId ?? ""}>
               <option value="">— Semua —</option>
               {cascade.segments.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
-            {!filterBranchId && session.role === "global" && (
-              <p className="text-[10px] text-ink-3 mt-1">Pilih cabang dulu</p>
-            )}
+            {!filterBranchId && session.role === "global" ? (
+              <p className="text-[10px] text-ink-3 mt-1">Pilih cabang dulu untuk filter</p>
+            ) : cascade.segments.length === 0 ? (
+              <p className="text-[10px] text-bad-2 mt-1">
+                Cabang belum punya Tipe Dana.{" "}
+                <Link href={`/cabang/${filterBranchId}`} className="underline">
+                  Tambah di sini →
+                </Link>
+              </p>
+            ) : null}
           </div>
           <div>
             <label className="form-label">Sub Tipe Dana</label>
-            <select name="sub_id" className="form-select" defaultValue={filterSubId ?? ""}
-              disabled={!filterSegmentId}>
+            <select name="sub_id" className="form-select" defaultValue={filterSubId ?? ""}>
               <option value="">— Semua —</option>
               {cascade.subs.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
-            {!filterSegmentId && (
+            {!filterSegmentId ? (
               <p className="text-[10px] text-ink-3 mt-1">Pilih Tipe Dana dulu</p>
-            )}
+            ) : cascade.subs.length === 0 ? (
+              <p className="text-[10px] text-bad-2 mt-1">
+                Tipe Dana ini belum punya Sub Tipe Dana.{" "}
+                <Link
+                  href={`/cabang/${filterBranchId}/tipe-dana/${filterSegmentId}`}
+                  className="underline"
+                >
+                  Tambah →
+                </Link>
+              </p>
+            ) : null}
           </div>
           <div>
             <label className="form-label">Rekening</label>
@@ -236,6 +251,9 @@ export default async function TransaksiPage({
                 </option>
               ))}
             </select>
+            {filterBranchId && cascade.accounts.length === 0 && (
+              <p className="text-[10px] text-ink-3 mt-1">Belum ada rekening</p>
+            )}
           </div>
 
           <div className="col-span-2 md:col-span-4 border-t border-line pt-3 -mt-1">

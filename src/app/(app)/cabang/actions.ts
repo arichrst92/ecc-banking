@@ -39,6 +39,24 @@ export async function createBranchAction(formData: FormData) {
       [newId]
     );
 
+    // Auto-create default segment "Umum" + sub_segment "Umum" supaya cascade filter
+    // langsung functional dan user bisa langsung tambah rekening.
+    const segResult = await db.query<{ id: number }>(
+      `INSERT INTO segments (branch_id, name, code, status, display_order)
+       VALUES ($1, 'Umum', 'UMUM', 'aktif', 0)
+       ON CONFLICT (branch_id, name) DO NOTHING
+       RETURNING id`,
+      [newId]
+    );
+    if (segResult.rows[0]) {
+      await db.query(
+        `INSERT INTO sub_segments (segment_id, name, code, status, display_order)
+         VALUES ($1, 'Umum', 'UMUM', 'aktif', 0)
+         ON CONFLICT (segment_id, name) DO NOTHING`,
+        [segResult.rows[0].id]
+      );
+    }
+
     await logAudit(session, "create_branch", {
       target_table: "branches", target_id: newId, details: d,
     });
