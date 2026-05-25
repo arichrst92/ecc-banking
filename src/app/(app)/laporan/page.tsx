@@ -352,7 +352,7 @@ export default async function LaporanPage({
                   </div>
                   <h2 className="font-serif text-2xl font-light mb-0.5">
                     {filterBranchId
-                      ? branches.find((b) => b.id === filterBranchId)?.name ?? "Cabang"
+                      ? cascade.branches.find((b) => b.id === filterBranchId)?.name ?? "Cabang"
                       : "Konsolidasi Semua Cabang"}
                   </h2>
                   <div className="text-[12px] text-white/55 mb-4">
