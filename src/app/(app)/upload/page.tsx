@@ -216,6 +216,14 @@ export default async function UploadPage({
                             Review
                           </Link>
                         )}
+                        {r.status === "success" && r.tx_inserted > 0 && (
+                          <Link
+                            href={`/transaksi?upload_id=${r.id}`}
+                            className="btn btn-primary btn-sm"
+                          >
+                            👁 Lihat Transaksi
+                          </Link>
+                        )}
                         {r.status !== "processing" && (
                           <form action={deleteUploadAction.bind(null, r.id)} className="inline">
                             <LoadingButton

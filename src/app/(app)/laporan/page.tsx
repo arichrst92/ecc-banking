@@ -6,6 +6,7 @@ import { query } from "@/lib/db";
 import { formatMoney, formatDate } from "@/lib/format";
 import { ChartLine } from "@/components/chart-line";
 import { ChartDoughnut } from "@/components/chart-doughnut";
+import { CascadeSelect } from "@/components/cascade-select";
 import { getCascadeOptions, buildTxWhere } from "@/lib/hierarchy";
 
 export const dynamic = "force-dynamic";
@@ -176,26 +177,27 @@ export default async function LaporanPage({
         <div className="text-[10px] uppercase tracking-wider text-ink-3 font-semibold mb-3">
           Filter Lokasi Dana + Periode
         </div>
-        <form className="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
           {session.role === "global" && (
             <div>
               <label className="form-label">Cabang</label>
-              <select name="branch_id" className="form-select" defaultValue={filterBranchId ?? ""}>
-                <option value="">— Semua (Konsolidasi) —</option>
-                {cascade.branches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
+              <CascadeSelect
+                name="branch_id"
+                defaultValue={filterBranchId?.toString() ?? ""}
+                placeholder="— Semua (Konsolidasi) —"
+                options={cascade.branches.map((b) => ({ value: b.id, label: b.name }))}
+                resetChildren={["segment_id", "sub_id", "account_id"]}
+              />
             </div>
           )}
           <div>
             <label className="form-label">Tipe Dana</label>
-            <select name="segment_id" className="form-select" defaultValue={filterSegmentId ?? ""}>
-              <option value="">— Semua —</option>
-              {cascade.segments.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
+            <CascadeSelect
+              name="segment_id"
+              defaultValue={filterSegmentId?.toString() ?? ""}
+              options={cascade.segments.map((s) => ({ value: s.id, label: s.name }))}
+              resetChildren={["sub_id", "account_id"]}
+            />
             {!filterBranchId && session.role === "global" ? (
               <p className="text-[10px] text-ink-3 mt-1">Pilih cabang dulu untuk filter</p>
             ) : cascade.segments.length === 0 ? (
@@ -209,12 +211,12 @@ export default async function LaporanPage({
           </div>
           <div>
             <label className="form-label">Sub Tipe Dana</label>
-            <select name="sub_id" className="form-select" defaultValue={filterSubId ?? ""}>
-              <option value="">— Semua —</option>
-              {cascade.subs.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
+            <CascadeSelect
+              name="sub_id"
+              defaultValue={filterSubId?.toString() ?? ""}
+              options={cascade.subs.map((s) => ({ value: s.id, label: s.name }))}
+              resetChildren={["account_id"]}
+            />
             {!filterSegmentId ? (
               <p className="text-[10px] text-ink-3 mt-1">Pilih Tipe Dana dulu</p>
             ) : cascade.subs.length === 0 ? (
@@ -229,7 +231,16 @@ export default async function LaporanPage({
               </p>
             ) : null}
           </div>
-          <div></div>
+        </div>
+
+        <form className="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
+          {/* Hidden inputs untuk preserve cascade filter saat submit form periode */}
+          {session.role === "global" && filterBranchId && (
+            <input type="hidden" name="branch_id" value={filterBranchId} />
+          )}
+          {filterSegmentId && <input type="hidden" name="segment_id" value={filterSegmentId} />}
+          {filterSubId && <input type="hidden" name="sub_id" value={filterSubId} />}
+
           <div>
             <label className="form-label">Dari</label>
             <input type="date" name="from" className="form-input" defaultValue={period.from} />
@@ -240,7 +251,7 @@ export default async function LaporanPage({
           </div>
           <div className="col-span-2 flex justify-end gap-2">
             <Link href="/laporan" className="btn btn-outline">Reset</Link>
-            <button type="submit" className="btn btn-primary">Terapkan Filter</button>
+            <button type="submit" className="btn btn-primary">Terapkan Periode</button>
           </div>
         </form>
       </div>
@@ -274,25 +285,7 @@ export default async function LaporanPage({
         </div>
       )}
 
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-            // Cascade hierarchy: change parent → reset children + auto-submit form
-            ['branch_id', 'segment_id', 'sub_id'].forEach(function (parent, i) {
-              const sel = document.querySelector('select[name="' + parent + '"]');
-              if (!sel) return;
-              sel.addEventListener('change', function () {
-                const children = ['segment_id', 'sub_id'].slice(i);
-                children.forEach(function (cname) {
-                  const c = document.querySelector('select[name="' + cname + '"]');
-                  if (c) c.value = '';
-                });
-                if (sel.form) sel.form.requestSubmit();
-              });
-            });
-          `,
-        }}
-      />
+      {/* Cascade dropdown sekarang pakai CascadeSelect client component */}
 
       {/* Report header per currency */}
       {summary.length === 0 ? (

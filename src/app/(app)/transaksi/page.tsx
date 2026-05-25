@@ -4,6 +4,7 @@ import { getSession } from "@/lib/session";
 import { query, queryOne } from "@/lib/db";
 import { formatDate, formatMoney } from "@/lib/format";
 import { getCascadeOptions, buildTxWhere } from "@/lib/hierarchy";
+import { CascadeSelect } from "@/components/cascade-select";
 import type { Category } from "@/lib/types";
 import { recategorizeAction } from "./actions";
 
@@ -44,6 +45,7 @@ export default async function TransaksiPage({
     segment_id?: string;
     sub_id?: string;
     account_id?: string;
+    upload_id?: string;
     category_id?: string;
     direction?: string;
     from?: string;
@@ -63,6 +65,7 @@ export default async function TransaksiPage({
   const filterSegmentId = searchParams.segment_id ? Number(searchParams.segment_id) : null;
   const filterSubId = searchParams.sub_id ? Number(searchParams.sub_id) : null;
   const filterAccountId = searchParams.account_id ? Number(searchParams.account_id) : null;
+  const filterUploadId = searchParams.upload_id ? Number(searchParams.upload_id) : null;
   const filterCategoryId = searchParams.category_id ? Number(searchParams.category_id) : null;
   const filterDirection = searchParams.direction === "in" || searchParams.direction === "out"
     ? searchParams.direction : null;
@@ -90,6 +93,10 @@ export default async function TransaksiPage({
   whereParts.push(...hier.whereParts);
   params.push(...hier.params);
 
+  if (filterUploadId) {
+    params.push(filterUploadId);
+    whereParts.push(`t.upload_id = $${params.length}`);
+  }
   if (filterCategoryId) {
     params.push(filterCategoryId);
     whereParts.push(`t.category_id = $${params.length}`);
@@ -146,12 +153,29 @@ export default async function TransaksiPage({
     `SELECT * FROM categories ORDER BY priority ASC, name ASC`
   );
 
+  // Kalau filter upload_id aktif, ambil info upload untuk banner
+  const uploadInfo = filterUploadId
+    ? await queryOne<{
+        id: number; filename: string; uploaded_at: string; tx_inserted: number;
+        bank: string; account_number: string; branch_name: string;
+      }>(
+        `SELECT u.id, u.filename, u.uploaded_at, u.tx_inserted,
+                a.bank, a.account_number, b.name AS branch_name
+           FROM uploads u
+           JOIN accounts a ON a.id = u.account_id
+           JOIN branches b ON b.id = u.branch_id
+          WHERE u.id = $1`,
+        [filterUploadId]
+      )
+    : null;
+
   // Pagination QS helper
   const qsBase = new URLSearchParams();
   if (session.role === "global" && filterBranchId) qsBase.set("branch_id", String(filterBranchId));
   if (filterSegmentId) qsBase.set("segment_id", String(filterSegmentId));
   if (filterSubId) qsBase.set("sub_id", String(filterSubId));
   if (filterAccountId) qsBase.set("account_id", String(filterAccountId));
+  if (filterUploadId) qsBase.set("upload_id", String(filterUploadId));
   if (filterCategoryId) qsBase.set("category_id", String(filterCategoryId));
   if (filterDirection) qsBase.set("direction", filterDirection);
   if (filterFrom) qsBase.set("from", filterFrom);
@@ -183,31 +207,50 @@ export default async function TransaksiPage({
         </div>
       )}
 
+      {uploadInfo && (
+        <div className="card bg-brand-orange-soft border-brand-orange/30 mb-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[12px] font-semibold text-navy">
+                📂 Filter Upload: <span className="text-brand-orange">{uploadInfo.filename}</span>
+              </div>
+              <div className="text-[11px] text-ink-2 mt-0.5">
+                {uploadInfo.branch_name} · {uploadInfo.bank} {uploadInfo.account_number} ·{" "}
+                {uploadInfo.tx_inserted} transaksi · uploaded {new Date(uploadInfo.uploaded_at).toLocaleString("id-ID")}
+              </div>
+            </div>
+            <Link href="/transaksi" className="btn btn-outline btn-sm">
+              ✕ Hapus filter upload
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Filter — cascade */}
       <div className="card mb-4">
         <div className="text-[10px] uppercase tracking-wider text-ink-3 font-semibold mb-3">
           Filter Lokasi Dana
         </div>
-        <form className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
           {session.role === "global" && (
             <div>
               <label className="form-label">Cabang</label>
-              <select name="branch_id" className="form-select" defaultValue={filterBranchId ?? ""}>
-                <option value="">— Semua —</option>
-                {cascade.branches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
+              <CascadeSelect
+                name="branch_id"
+                defaultValue={filterBranchId?.toString() ?? ""}
+                options={cascade.branches.map((b) => ({ value: b.id, label: b.name }))}
+                resetChildren={["segment_id", "sub_id", "account_id"]}
+              />
             </div>
           )}
           <div>
             <label className="form-label">Tipe Dana</label>
-            <select name="segment_id" className="form-select" defaultValue={filterSegmentId ?? ""}>
-              <option value="">— Semua —</option>
-              {cascade.segments.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
+            <CascadeSelect
+              name="segment_id"
+              defaultValue={filterSegmentId?.toString() ?? ""}
+              options={cascade.segments.map((s) => ({ value: s.id, label: s.name }))}
+              resetChildren={["sub_id", "account_id"]}
+            />
             {!filterBranchId && session.role === "global" ? (
               <p className="text-[10px] text-ink-3 mt-1">Pilih cabang dulu untuk filter</p>
             ) : cascade.segments.length === 0 ? (
@@ -221,12 +264,12 @@ export default async function TransaksiPage({
           </div>
           <div>
             <label className="form-label">Sub Tipe Dana</label>
-            <select name="sub_id" className="form-select" defaultValue={filterSubId ?? ""}>
-              <option value="">— Semua —</option>
-              {cascade.subs.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
+            <CascadeSelect
+              name="sub_id"
+              defaultValue={filterSubId?.toString() ?? ""}
+              options={cascade.subs.map((s) => ({ value: s.id, label: s.name }))}
+              resetChildren={["account_id"]}
+            />
             {!filterSegmentId ? (
               <p className="text-[10px] text-ink-3 mt-1">Pilih Tipe Dana dulu</p>
             ) : cascade.subs.length === 0 ? (
@@ -243,18 +286,29 @@ export default async function TransaksiPage({
           </div>
           <div>
             <label className="form-label">Rekening</label>
-            <select name="account_id" className="form-select" defaultValue={filterAccountId ?? ""}>
-              <option value="">— Semua —</option>
-              {cascade.accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.bank} {a.account_number.slice(-4)} · {a.purpose}
-                </option>
-              ))}
-            </select>
+            <CascadeSelect
+              name="account_id"
+              defaultValue={filterAccountId?.toString() ?? ""}
+              options={cascade.accounts.map((a) => ({
+                value: a.id,
+                label: `${a.bank} ${a.account_number.slice(-4)} · ${a.purpose}`,
+              }))}
+            />
             {filterBranchId && cascade.accounts.length === 0 && (
               <p className="text-[10px] text-ink-3 mt-1">Belum ada rekening</p>
             )}
           </div>
+        </div>
+
+        <form className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          {/* Hidden inputs untuk preserve cascade filter saat submit form atribut */}
+          {session.role === "global" && filterBranchId && (
+            <input type="hidden" name="branch_id" value={filterBranchId} />
+          )}
+          {filterSegmentId && <input type="hidden" name="segment_id" value={filterSegmentId} />}
+          {filterSubId && <input type="hidden" name="sub_id" value={filterSubId} />}
+          {filterAccountId && <input type="hidden" name="account_id" value={filterAccountId} />}
+          {filterUploadId && <input type="hidden" name="upload_id" value={filterUploadId} />}
 
           <div className="col-span-2 md:col-span-4 border-t border-line pt-3 -mt-1">
             <div className="text-[10px] uppercase tracking-wider text-ink-3 font-semibold mb-2">
@@ -394,27 +448,12 @@ export default async function TransaksiPage({
         )}
       </div>
 
+      {/* Auto-submit untuk select kategori per row (re-categorize inline) */}
       <script
         dangerouslySetInnerHTML={{
           __html: `
-            // Auto-submit untuk select dropdown re-categorize per row
             document.querySelectorAll('[data-auto-submit]').forEach(function (sel) {
               sel.addEventListener('change', function () {
-                if (sel.form) sel.form.requestSubmit();
-              });
-            });
-            // Cascade hierarchy: change parent → reset children + auto-submit form
-            ['branch_id', 'segment_id', 'sub_id', 'account_id'].forEach(function (parent, i) {
-              const sel = document.querySelector('select[name="' + parent + '"]');
-              if (!sel) return;
-              sel.addEventListener('change', function () {
-                // Reset child filters dulu
-                const children = ['segment_id', 'sub_id', 'account_id'].slice(i);
-                children.forEach(function (cname) {
-                  const c = document.querySelector('select[name="' + cname + '"]');
-                  if (c) c.value = '';
-                });
-                // Auto-submit form supaya child dropdown bisa populate
                 if (sel.form) sel.form.requestSubmit();
               });
             });
