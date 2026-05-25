@@ -84,12 +84,15 @@ export default async function UploadPage({
         <form action={uploadFileAction} className="space-y-3">
           <label
             htmlFor="file-input"
-            className="block border-2 border-dashed border-line rounded-2xl py-10 px-6 text-center cursor-pointer hover:border-navy-3 hover:bg-cream transition-colors"
+            className="block border-2 border-dashed border-line rounded-2xl py-10 px-6 text-center cursor-pointer hover:border-brand-orange hover:bg-brand-orange-soft transition-colors"
+            id="file-label"
           >
-            <div className="text-[40px] mb-2">📄</div>
-            <div className="font-semibold text-[14px] text-navy">Klik untuk pilih file</div>
-            <div className="text-[11px] text-ink-3 mt-1">
-              .csv (BCA Corporate atau Personal)
+            <div className="text-[40px] mb-2" id="file-icon">📄</div>
+            <div className="font-semibold text-[14px] text-navy" id="file-title">
+              Klik untuk pilih file
+            </div>
+            <div className="text-[11px] text-ink-3 mt-1" id="file-subtitle">
+              Upload file CSV dari mutasi perbankan bank apapun di sini
             </div>
             <input
               id="file-input"
@@ -98,9 +101,7 @@ export default async function UploadPage({
               accept=".csv,text/csv"
               required
               className="hidden"
-              onChange={undefined}
             />
-            <div id="file-name" className="text-[12px] text-good mt-3 font-medium"></div>
           </label>
 
           <div className="flex justify-end gap-2">
@@ -121,11 +122,20 @@ export default async function UploadPage({
               __html: `
                 (function () {
                   const inp = document.getElementById('file-input');
-                  const out = document.getElementById('file-name');
+                  const title = document.getElementById('file-title');
+                  const subtitle = document.getElementById('file-subtitle');
+                  const icon = document.getElementById('file-icon');
+                  const label = document.getElementById('file-label');
                   inp.addEventListener('change', () => {
                     if (inp.files && inp.files[0]) {
                       const f = inp.files[0];
-                      out.textContent = '✓ ' + f.name + ' (' + (f.size / 1024).toFixed(1) + ' KB)';
+                      icon.textContent = '✅';
+                      title.textContent = f.name;
+                      title.classList.remove('text-navy');
+                      title.classList.add('text-good');
+                      subtitle.textContent = (f.size / 1024).toFixed(1) + ' KB · klik untuk ganti file';
+                      label.classList.remove('border-line');
+                      label.classList.add('border-good', 'bg-brand-orange-soft');
                     }
                   });
                 })();

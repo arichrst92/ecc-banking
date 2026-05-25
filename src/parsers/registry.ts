@@ -35,6 +35,8 @@ export async function detectAndParse(
 ): Promise<DetectResult> {
   // ── Step 0: Forced profile (dari upload.format_profile_id) ──
   // Skip detection entirely, langsung apply config dari profile yang dipilih.
+  // NOTE: Step 0 = re-parse untuk upload yg sama (preview/confirm), bukan upload baru.
+  // Jadi TIDAK increment upload_count/success_count (kalau di-counter, 1 upload jadi 3x).
   if (options.force_profile_id) {
     const profile = await query<{
       id: number;
@@ -47,14 +49,6 @@ export async function detectAndParse(
     if (profile.length > 0) {
       const p = profile[0];
       const result = genericParse(content, p.config as FormatProfileConfig, p.name);
-      await query(
-        `UPDATE format_profiles
-            SET upload_count = upload_count + 1,
-                success_count = success_count + 1,
-                last_used_at = NOW()
-          WHERE id = $1`,
-        [p.id]
-      );
       return { result, source: "profile", profile_id: p.id, profile_name: p.name };
     }
     // Profile yang di-force tidak ditemukan atau disabled → fall through ke normal flow

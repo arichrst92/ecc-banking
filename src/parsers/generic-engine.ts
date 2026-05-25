@@ -152,6 +152,52 @@ export function genericParse(
     throw new Error("Tidak ada transaksi terdeteksi");
   }
 
+  // ── Compute opening/closing balance dari transaksi kalau footer tidak menyediakan ──
+  // Banyak bank (HSBC, dll) tidak kasih saldo awal/akhir eksplisit di footer.
+  // Sebagai fallback: derive dari kolom 'balance' di transaksi pertama+terakhir kronologis.
+  if (transactions.some((t) => t.balance !== null)) {
+    // Sort by tx_date asc, then by index (stable)
+    const sorted = transactions
+      .map((t, i) => ({ t, i }))
+      .sort((a, b) => {
+        if (a.t.tx_date !== b.t.tx_date) return a.t.tx_date.localeCompare(b.t.tx_date);
+        return a.i - b.i;
+      });
+
+    if (openingBalance === null) {
+      // opening = balance setelah tx pertama - net dari tx pertama
+      // net = credit - debit (kalau credit menambah saldo)
+      const first = sorted.find((x) => x.t.balance !== null);
+      if (first) {
+        openingBalance = first.t.balance! - first.t.credit + first.t.debit;
+      }
+    }
+
+    if (closingBalance === null) {
+      // closing = balance dari tx terakhir kronologis yang punya balance
+      for (let i = sorted.length - 1; i >= 0; i--) {
+        if (sorted[i].t.balance !== null) {
+          closingBalance = sorted[i].t.balance;
+          break;
+        }
+      }
+    }
+  }
+
+  // Compute total_debit / total_credit kalau footer tidak menyediakan
+  if (totalDebit === null) {
+    totalDebit = transactions.reduce((s, t) => s + t.debit, 0);
+  }
+  if (totalCredit === null) {
+    totalCredit = transactions.reduce((s, t) => s + t.credit, 0);
+  }
+  if (totalDebitCount === null) {
+    totalDebitCount = transactions.filter((t) => t.debit > 0).length;
+  }
+  if (totalCreditCount === null) {
+    totalCreditCount = transactions.filter((t) => t.credit > 0).length;
+  }
+
   return {
     parser_name: parserName,
     account_number: accountNumber,
