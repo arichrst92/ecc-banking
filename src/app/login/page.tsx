@@ -1,5 +1,6 @@
 import { query } from "@/lib/db";
 import type { Branch } from "@/lib/types";
+import { LoginSubmitButton } from "./login-button";
 import { loginAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -72,12 +73,7 @@ export default async function LoginPage({
             <p className="text-bad-2 text-[12px] text-center">{searchParams.err}</p>
           )}
 
-          <button
-            type="submit"
-            className="w-full px-4 py-3.5 bg-brand-orange text-white font-bold rounded-xl text-[15px] hover:bg-brand-orange-2 transition-colors shadow-lg shadow-brand-orange/30"
-          >
-            Masuk ke Sistem
-          </button>
+          <LoginSubmitButton />
         </form>
 
         <div className="mt-7 pt-5 border-t border-white/10 flex items-center justify-center gap-2.5 flex-wrap">

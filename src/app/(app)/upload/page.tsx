@@ -3,6 +3,7 @@ import { Topbar } from "@/components/topbar";
 import { getSession } from "@/lib/session";
 import { query } from "@/lib/db";
 import { formatDateTime, formatMoney } from "@/lib/format";
+import { LoadingButton } from "@/components/loading-button";
 import { uploadFileAction, deleteUploadAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -80,7 +81,7 @@ export default async function UploadPage({
           dan tampilkan preview sebelum simpan.
         </p>
 
-        <form action={uploadFileAction} encType="multipart/form-data" className="space-y-3">
+        <form action={uploadFileAction} className="space-y-3">
           <label
             htmlFor="file-input"
             className="block border-2 border-dashed border-line rounded-2xl py-10 px-6 text-center cursor-pointer hover:border-navy-3 hover:bg-cream transition-colors"
@@ -103,10 +104,17 @@ export default async function UploadPage({
           </label>
 
           <div className="flex justify-end gap-2">
-            <button type="submit" className="btn btn-gold">
-              Deteksi & Preview
-            </button>
+            <LoadingButton
+              variant="gold"
+              loadingText="Memproses... (parse + AI categorize)"
+            >
+              Deteksi &amp; Preview
+            </LoadingButton>
           </div>
+          <p className="text-[11px] text-ink-3 text-center">
+            Format baru memakan waktu 10–30 detik (LLM analisa struktur + klasifikasi kategori).
+            Format yang sudah dikenal: ~3-5 detik.
+          </p>
 
           <script
             dangerouslySetInnerHTML={{
@@ -200,17 +208,18 @@ export default async function UploadPage({
                         )}
                         {r.status !== "processing" && (
                           <form action={deleteUploadAction.bind(null, r.id)} className="inline">
-                            <button
-                              type="submit"
-                              className="btn btn-danger btn-sm"
-                              data-confirm={
+                            <LoadingButton
+                              variant="danger"
+                              size="sm"
+                              loadingText="Menghapus..."
+                              confirm={
                                 r.status === "success"
                                   ? `Hapus upload "${r.filename}"?\n\n${r.tx_inserted} transaksi yang sudah masuk akan IKUT TERHAPUS dan saldo akun akan di-recalculate.\n\nAksi ini tidak bisa di-undo.`
                                   : `Hapus upload "${r.filename}"?\n\nUpload ini masih ${r.status}, belum ada transaksi tersimpan.`
                               }
                             >
                               Hapus
-                            </button>
+                            </LoadingButton>
                           </form>
                         )}
                       </div>
@@ -223,21 +232,6 @@ export default async function UploadPage({
         )}
       </div>
 
-      {/* Confirm dialog untuk tombol dengan data-confirm */}
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-            document.querySelectorAll('[data-confirm]').forEach(function (btn) {
-              btn.addEventListener('click', function (e) {
-                if (!window.confirm(btn.dataset.confirm)) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }
-              });
-            });
-          `,
-        }}
-      />
     </>
   );
 }

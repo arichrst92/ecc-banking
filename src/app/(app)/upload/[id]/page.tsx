@@ -9,6 +9,7 @@ import { detectAndParse } from "@/parsers/registry";
 import { batchCategorize, type BatchCategorizeResult } from "@/parsers/ai-categorizer";
 import { computeDupHash } from "@/lib/dup-hash";
 import type { Category } from "@/lib/types";
+import { LoadingButton } from "@/components/loading-button";
 import { confirmUploadAction, cancelUploadAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -439,27 +440,45 @@ export default async function UploadPreviewPage({
       </div>
 
       {/* Action buttons */}
-      <div className="card flex items-center justify-between bg-[#fef9ee] border-[#f5e5a0]">
-        <div className="text-[12px] text-ink-2">
-          <p className="font-semibold">Konfirmasi Simpan</p>
-          <p className="text-ink-3 mt-1">
-            Klik <strong>Proses & Simpan</strong> untuk insert <strong>{u.tx_count}</strong> transaksi ke database
-            dengan auto-kategorisasi. Duplikat akan di-skip otomatis.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <form action={cancelUploadAction.bind(null, u.id)} className="inline">
-            <button type="submit" className="btn btn-danger">Batal</button>
-          </form>
-          <form action={confirmUploadAction.bind(null, u.id)} className="inline">
-            <button
-              type="submit"
-              className="btn btn-gold"
-              disabled={!!currencyMismatch || !!parseError}
-            >
-              ✓ Proses & Simpan
-            </button>
-          </form>
+      <div className="card bg-[#fef9ee] border-[#f5e5a0]">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="text-[12px] text-ink-2 flex-1 min-w-[280px]">
+            <p className="font-semibold">Konfirmasi Simpan</p>
+            <p className="text-ink-3 mt-1">
+              Klik <strong>Proses &amp; Simpan</strong> untuk insert <strong>{u.tx_count}</strong> transaksi ke database
+              dengan kategorisasi yang sudah tampil di atas. Duplikat akan di-skip otomatis.
+            </p>
+            {currencyMismatch && (
+              <p className="text-bad-2 mt-2 font-medium">
+                ⚠ Tidak bisa lanjut: currency file ({u.currency}) ≠ akun ({u.account_currency}).
+              </p>
+            )}
+            {parseError && (
+              <p className="text-bad-2 mt-2 font-medium">
+                ⚠ Parser error: {parseError}
+              </p>
+            )}
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <form action={cancelUploadAction.bind(null, u.id)} className="inline">
+              <LoadingButton
+                variant="danger"
+                loadingText="Menghapus..."
+                confirm="Batal & hapus upload ini? File akan dihapus permanen."
+              >
+                Batal
+              </LoadingButton>
+            </form>
+            <form action={confirmUploadAction.bind(null, u.id)} className="inline">
+              <LoadingButton
+                variant="gold"
+                loadingText="Menyimpan transaksi..."
+                disabled={!!currencyMismatch || !!parseError}
+              >
+                ✓ Proses &amp; Simpan
+              </LoadingButton>
+            </form>
+          </div>
         </div>
       </div>
     </>
