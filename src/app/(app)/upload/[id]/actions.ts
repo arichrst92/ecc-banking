@@ -23,6 +23,7 @@ export async function confirmUploadAction(uploadId: number) {
     status: string;
     storage_path: string | null;
     parser_name: string;
+    format_profile_id: number | null;
     currency: string;
     opening_balance: string | null;
     closing_balance: string | null;
@@ -58,12 +59,14 @@ export async function confirmUploadAction(uploadId: number) {
     redirect(`/upload?err=${encodeURIComponent("Gagal baca file: " + e.message)}`);
   }
 
-  // Re-parse — kali ini profile sudah ada di DB, jadi tidak akan kena LLM lagi
+  // Re-parse — pakai force_profile_id supaya bypass detect_patterns yg mungkin kurang akurat.
+  // Saat upload pertama (LLM bootstrap), format_profile_id sudah ter-simpan di upload row.
   let parsed;
   try {
     const detected = await detectAndParse(content, upload.storage_path, {
       actor_role: session.role,
-      allow_llm_fallback: false, // confirm tahap = profile harus sudah ada
+      allow_llm_fallback: false,
+      force_profile_id: upload.format_profile_id,
     });
     parsed = detected.result;
   } catch (e: any) {

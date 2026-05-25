@@ -23,8 +23,43 @@ export interface DetectResult {
 export async function detectAndParse(
   content: string,
   filename: string,
-  options: { actor_role: string; allow_llm_fallback?: boolean }
+  options: {
+    actor_role: string;
+    allow_llm_fallback?: boolean;
+    /**
+     * Skip detect, paksa pakai profile dengan ID ini.
+     * Useful saat re-parse upload yang format_profile_id-nya sudah tersimpan.
+     */
+    force_profile_id?: number | null;
+  }
 ): Promise<DetectResult> {
+  // ── Step 0: Forced profile (dari upload.format_profile_id) ──
+  // Skip detection entirely, langsung apply config dari profile yang dipilih.
+  if (options.force_profile_id) {
+    const profile = await query<{
+      id: number;
+      name: string;
+      config: FormatProfileConfig;
+    }>(
+      `SELECT id, name, config FROM format_profiles WHERE id = $1 AND status != 'disabled' LIMIT 1`,
+      [options.force_profile_id]
+    );
+    if (profile.length > 0) {
+      const p = profile[0];
+      const result = genericParse(content, p.config as FormatProfileConfig, p.name);
+      await query(
+        `UPDATE format_profiles
+            SET upload_count = upload_count + 1,
+                success_count = success_count + 1,
+                last_used_at = NOW()
+          WHERE id = $1`,
+        [p.id]
+      );
+      return { result, source: "profile", profile_id: p.id, profile_name: p.name };
+    }
+    // Profile yang di-force tidak ditemukan atau disabled → fall through ke normal flow
+  }
+
   // ── Step 1: hardcoded adapters ──
   for (const a of hardcodedAdapters) {
     if (a.detect(content, filename)) {

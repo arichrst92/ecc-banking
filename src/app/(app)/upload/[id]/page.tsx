@@ -20,6 +20,7 @@ type UploadRow = {
   branch_id: number;
   filename: string;
   parser_name: string;
+  format_profile_id: number | null;
   status: "pending" | "processing" | "success" | "failed";
   storage_path: string | null;
   date_from: string;
@@ -59,8 +60,8 @@ export default async function UploadPreviewPage({
   if (isNaN(uploadId)) notFound();
 
   const u = await queryOne<UploadRow>(
-    `SELECT u.id, u.account_id, u.branch_id, u.filename, u.parser_name, u.status,
-            u.storage_path, u.date_from, u.date_to, u.currency,
+    `SELECT u.id, u.account_id, u.branch_id, u.filename, u.parser_name, u.format_profile_id,
+            u.status, u.storage_path, u.date_from, u.date_to, u.currency,
             u.opening_balance, u.closing_balance,
             u.total_debit_period, u.total_credit_period,
             u.total_debit_count, u.total_credit_count,
@@ -111,6 +112,7 @@ export default async function UploadPreviewPage({
       const detected = await detectAndParse(content, u.filename, {
         actor_role: session.role,
         allow_llm_fallback: false,
+        force_profile_id: u.format_profile_id, // bypass detect, langsung pakai profile yg tersimpan
       });
       sampleTxs = detected.result.transactions;
 
