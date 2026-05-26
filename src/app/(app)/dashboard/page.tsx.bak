@@ -192,21 +192,21 @@ export default async function DashboardPage() {
               <div className="stat-card">
                 <div className="text-[10px] uppercase tracking-wider text-ink-3 mb-1.5">TOTAL SALDO</div>
                 <div className="text-[22px] font-bold leading-none">
-                  {fmt(t.total_balance, t.currency)}
+                  {formatMoney(t.total_balance, t.currency)}
                 </div>
                 <div className="text-[11px] text-ink-3 mt-1.5">semua rekening aktif</div>
               </div>
               <div className="stat-card">
                 <div className="text-[10px] uppercase tracking-wider text-ink-3 mb-1.5">PEMASUKAN BULAN INI</div>
                 <div className="text-[22px] font-bold leading-none text-good">
-                  {fmt(t.month_in, t.currency)}
+                  {formatMoney(t.month_in, t.currency)}
                 </div>
                 <div className="text-[11px] text-ink-3 mt-1.5">{t.tx_count} transaksi</div>
               </div>
               <div className="stat-card">
                 <div className="text-[10px] uppercase tracking-wider text-ink-3 mb-1.5">PENGELUARAN BULAN INI</div>
                 <div className="text-[22px] font-bold leading-none text-bad">
-                  {fmt(t.month_out, t.currency)}
+                  {formatMoney(t.month_out, t.currency)}
                 </div>
                 <div className="text-[11px] text-ink-3 mt-1.5">{t.tx_count} transaksi total</div>
               </div>
@@ -215,7 +215,7 @@ export default async function DashboardPage() {
                 <div className={`text-[22px] font-bold leading-none ${
                   net >= 0 ? "text-good" : "text-bad"
                 }`}>
-                  {net >= 0 ? "+" : ""}{fmt(net, t.currency)}
+                  {net >= 0 ? "+" : ""}{formatMoney(net, t.currency)}
                 </div>
                 <div className="text-[11px] text-ink-3 mt-1.5">in − out</div>
               </div>
@@ -260,13 +260,13 @@ export default async function DashboardPage() {
                     </td>
                     <td className="py-2.5 px-2 text-ink-3 font-mono text-[11px]">{r.currency}</td>
                     <td className="py-2.5 px-2 text-right font-semibold">
-                      {fmt(r.total_balance, r.currency)}
+                      {formatMoney(r.total_balance, r.currency)}
                     </td>
                     <td className="py-2.5 px-2 text-right text-good">
-                      {fmt(r.month_in, r.currency)}
+                      {formatMoney(r.month_in, r.currency)}
                     </td>
                     <td className="py-2.5 px-2 text-right text-bad-2">
-                      {fmt(r.month_out, r.currency)}
+                      {formatMoney(r.month_out, r.currency)}
                     </td>
                     <td className="py-2.5 px-2 text-right text-ink-2">{r.account_count}</td>
                     <td className="py-2.5 px-2 text-right">
@@ -336,13 +336,13 @@ export default async function DashboardPage() {
                       <td className="py-2 px-2 font-medium">{s.segment_name}</td>
                       <td className="py-2 px-2 text-ink-3 font-mono text-[11px]">{s.currency}</td>
                       <td className="py-2 px-2 text-right font-semibold">
-                        {fmt(s.total_balance, s.currency)}
+                        {formatMoney(s.total_balance, s.currency)}
                       </td>
                       <td className="py-2 px-2 text-right text-good">
-                        {fmt(s.month_in, s.currency)}
+                        {formatMoney(s.month_in, s.currency)}
                       </td>
                       <td className="py-2 px-2 text-right text-bad-2">
-                        {fmt(s.month_out, s.currency)}
+                        {formatMoney(s.month_out, s.currency)}
                       </td>
                       <td className="py-2 px-2 text-right text-ink-2 text-[11px]">
                         {s.sub_count} sub · {s.account_count} rek

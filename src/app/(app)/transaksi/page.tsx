@@ -5,6 +5,7 @@ import { query, queryOne } from "@/lib/db";
 import { formatDate, formatMoney } from "@/lib/format";
 import { getCascadeOptions, buildTxWhere } from "@/lib/hierarchy";
 import { CascadeSelect } from "@/components/cascade-select";
+import { getViewMode, getDisplayFormatter } from "@/lib/view-mode";
 import type { Category } from "@/lib/types";
 import { recategorizeAction } from "./actions";
 
@@ -57,6 +58,8 @@ export default async function TransaksiPage({
   };
 }) {
   const session = getSession()!;
+  const viewMode = getViewMode();
+  const fmt = getDisplayFormatter();
 
   // Cascade filters
   const filterBranchId = session.role === "branch"
@@ -194,6 +197,7 @@ export default async function TransaksiPage({
         title="Transaksi"
         role={session.role}
         subtitle={`${totalCount} transaksi · halaman ${page} dari ${totalPages}`}
+        viewMode={viewMode}
       />
 
       {searchParams.err && (
@@ -419,10 +423,10 @@ export default async function TransaksiPage({
                       </form>
                     </td>
                     <td className="py-2 px-2 text-right text-bad-2 whitespace-nowrap">
-                      {parseFloat(t.debit) > 0 ? formatMoney(t.debit, t.currency) : ""}
+                      {parseFloat(t.debit) > 0 ? fmt(t.debit, t.currency) : ""}
                     </td>
                     <td className="py-2 px-2 text-right text-good whitespace-nowrap">
-                      {parseFloat(t.credit) > 0 ? formatMoney(t.credit, t.currency) : ""}
+                      {parseFloat(t.credit) > 0 ? fmt(t.credit, t.currency) : ""}
                     </td>
                   </tr>
                 ))}

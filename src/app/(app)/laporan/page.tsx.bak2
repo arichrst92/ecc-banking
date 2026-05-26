@@ -359,13 +359,13 @@ export default async function LaporanPage({
                     <div>
                       <div className="text-[10px] text-white/50 mb-0.5">PEMASUKAN</div>
                       <div className="text-[20px] font-bold text-[#7ee8c5]">
-                        {fmt(s.total_in, s.currency)}
+                        {formatMoney(s.total_in, s.currency)}
                       </div>
                     </div>
                     <div>
                       <div className="text-[10px] text-white/50 mb-0.5">PENGELUARAN</div>
                       <div className="text-[20px] font-bold text-[#f5a9a3]">
-                        {fmt(s.total_out, s.currency)}
+                        {formatMoney(s.total_out, s.currency)}
                       </div>
                     </div>
                     <div>
@@ -373,7 +373,7 @@ export default async function LaporanPage({
                       <div className={`text-[20px] font-bold ${
                         net >= 0 ? "text-[#7ee8c5]" : "text-[#f5a9a3]"
                       }`}>
-                        {net >= 0 ? "+" : ""}{fmt(net, s.currency)}
+                        {net >= 0 ? "+" : ""}{formatMoney(net, s.currency)}
                       </div>
                     </div>
                     <div>
@@ -450,15 +450,15 @@ export default async function LaporanPage({
                             </td>
                             <td className="py-2 px-2 text-right text-ink-2">{c.tx_count}</td>
                             <td className="py-2 px-2 text-right text-good">
-                              {cIn > 0 ? fmt(cIn, s.currency) : "—"}
+                              {cIn > 0 ? formatMoney(cIn, s.currency) : "—"}
                             </td>
                             <td className="py-2 px-2 text-right text-bad-2">
-                              {cOut > 0 ? fmt(cOut, s.currency) : "—"}
+                              {cOut > 0 ? formatMoney(cOut, s.currency) : "—"}
                             </td>
                             <td className={`py-2 px-2 text-right font-semibold ${
                               cNet >= 0 ? "text-good" : "text-bad-2"
                             }`}>
-                              {cNet >= 0 ? "+" : ""}{fmt(cNet, s.currency)}
+                              {cNet >= 0 ? "+" : ""}{formatMoney(cNet, s.currency)}
                             </td>
                           </tr>
                         );
@@ -503,15 +503,15 @@ export default async function LaporanPage({
                               <td className="py-2 px-2 font-medium">{sg.segment_name}</td>
                               <td className="py-2 px-2 text-right text-ink-2">{sg.tx_count}</td>
                               <td className="py-2 px-2 text-right text-good">
-                                {segIn > 0 ? fmt(segIn, s.currency) : "—"}
+                                {segIn > 0 ? formatMoney(segIn, s.currency) : "—"}
                               </td>
                               <td className="py-2 px-2 text-right text-bad-2">
-                                {segOut > 0 ? fmt(segOut, s.currency) : "—"}
+                                {segOut > 0 ? formatMoney(segOut, s.currency) : "—"}
                               </td>
                               <td className={`py-2 px-2 text-right font-semibold ${
                                 segNet >= 0 ? "text-good" : "text-bad-2"
                               }`}>
-                                {segNet >= 0 ? "+" : ""}{fmt(segNet, s.currency)}
+                                {segNet >= 0 ? "+" : ""}{formatMoney(segNet, s.currency)}
                               </td>
                               <td className="py-2 px-2 text-right">
                                 <Link

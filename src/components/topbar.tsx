@@ -1,6 +1,13 @@
+import { ViewToggle } from "./view-toggle";
+
 export function Topbar({
-  title, role, subtitle,
-}: { title: string; role: "global" | "branch"; subtitle?: string }) {
+  title, role, subtitle, viewMode,
+}: {
+  title: string;
+  role: "global" | "branch";
+  subtitle?: string;
+  viewMode?: "native" | "usd";
+}) {
   const [first, ...rest] = title.split(" ");
   return (
     <div className="flex items-center justify-between mb-6">
@@ -11,6 +18,7 @@ export function Topbar({
         {subtitle && <p className="text-[12px] text-ink-3 mt-0.5">{subtitle}</p>}
       </div>
       <div className="flex items-center gap-2.5">
+        {viewMode !== undefined && <ViewToggle mode={viewMode} />}
         <span
           className={
             role === "global"
