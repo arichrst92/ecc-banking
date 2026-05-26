@@ -22,6 +22,32 @@ if (!conn) {
   process.exit(1);
 }
 
+// Validasi format URL — common error: placeholder belum di-ganti, special char di password
+try {
+  const u = new URL(conn);
+  if (!u.protocol.startsWith("postgres")) {
+    throw new Error(`Protocol salah: ${u.protocol} (harus postgresql://)`);
+  }
+  if (u.password === "GANTI_DENGAN_DB_PASSWORD" || u.password === "") {
+    throw new Error("Password masih placeholder atau kosong. Edit .env.local.");
+  }
+} catch (e) {
+  console.error("❌ DATABASE_URL tidak valid:", e.message);
+  console.error("");
+  console.error("Format yang benar:");
+  console.error("  postgresql://USER:PASSWORD@HOST:PORT/DBNAME");
+  console.error("");
+  console.error("Contoh untuk VPS:");
+  console.error("  postgresql://ecc:abc123hexpassword@localhost:5432/ecc_finance");
+  console.error("");
+  console.error("Pastikan:");
+  console.error("  - Skema 'postgresql://' (BUKAN 'postgres://' atau no scheme)");
+  console.error("  - Password tidak punya karakter khusus tanpa URL-encode (@, :, /, %, dll)");
+  console.error("    Kalau ada, encode: @ → %40, : → %3A, / → %2F");
+  console.error("  - Pakai password dari ~/.ecc-finance-db-password (atau di home root)");
+  process.exit(1);
+}
+
 const client = new pg.Client({ connectionString: conn });
 await client.connect();
 
