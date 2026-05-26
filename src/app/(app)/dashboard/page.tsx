@@ -44,7 +44,7 @@ type SegmentRow = {
 export default async function DashboardPage() {
   const session = getSession()!;
   const viewMode = getViewMode();
-  const fmt = getDisplayFormatter();
+  const fmt = await getDisplayFormatter();
   const branchFilter = session.role === "branch" && session.branchId
     ? `AND b.id = ${session.branchId}`
     : "";

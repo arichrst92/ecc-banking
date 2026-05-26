@@ -13,6 +13,7 @@ const NAV: NavItem[] = [
   { href: "/transaksi", label: "Transaksi" },
   { href: "/cabang", label: "Kelola Cabang", section: "Pengaturan", globalOnly: true },
   { href: "/kategori", label: "Kategori", globalOnly: true },
+  { href: "/kurs", label: "Mata Uang & Kurs", globalOnly: true },
   { href: "/format-profiles", label: "Format Parser", globalOnly: true },
   { href: "/kode-akses", label: "Kode Akses", globalOnly: true },
 ];

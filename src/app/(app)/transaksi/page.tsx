@@ -59,7 +59,7 @@ export default async function TransaksiPage({
 }) {
   const session = getSession()!;
   const viewMode = getViewMode();
-  const fmt = getDisplayFormatter();
+  const fmt = await getDisplayFormatter();
 
   // Cascade filters
   const filterBranchId = session.role === "branch"

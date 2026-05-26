@@ -30,7 +30,7 @@ export default async function LaporanPage({
 }) {
   const session = getSession()!;
   const viewMode = getViewMode();
-  const fmt = getDisplayFormatter();
+  const fmt = await getDisplayFormatter();
 
   const period = {
     from: searchParams.from ?? getDefaultPeriod().from,
