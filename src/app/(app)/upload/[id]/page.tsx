@@ -7,6 +7,7 @@ import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { readUploadFile } from "@/lib/upload-storage";
 import { detectAndParse } from "@/parsers/registry";
 import { batchCategorize, type BatchCategorizeResult } from "@/parsers/ai-categorizer";
+import type { ParsedTransaction } from "@/parsers/types";
 import { computeDupHash } from "@/lib/dup-hash";
 import type { Category } from "@/lib/types";
 import { LoadingButton } from "@/components/loading-button";
@@ -96,12 +97,7 @@ export default async function UploadPreviewPage({
   }
 
   // Read file dan parse ulang untuk preview semua transaksi + AI categorize
-  type SampleTx = {
-    tx_date: string; tx_time: string | null; description: string;
-    description_normalized: string; debit: number; credit: number;
-    balance: number | null; direction: "in" | "out";
-  };
-  let sampleTxs: SampleTx[] = [];
+  let sampleTxs: ParsedTransaction[] = [];
   let parseError: string | null = null;
   let catCache: BatchCategorizeResult | null = null;
   let catError: string | null = null;
