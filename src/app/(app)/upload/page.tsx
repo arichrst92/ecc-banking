@@ -4,6 +4,7 @@ import { getSession } from "@/lib/session";
 import { query } from "@/lib/db";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import { LoadingButton } from "@/components/loading-button";
+import { FormPendingOverlay } from "@/components/form-pending-overlay";
 import { uploadFileAction, deleteUploadAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -82,6 +83,15 @@ export default async function UploadPage({
         </p>
 
         <form action={uploadFileAction} className="space-y-3">
+          <FormPendingOverlay
+            title="Memproses File Mutasi"
+            steps={[
+              "📄 Parse struktur file mutasi",
+              "🤖 Deteksi format (AI bootstrap kalau format baru)",
+              "💾 Simpan ke database",
+            ]}
+            estimate="Estimasi 10–90 detik. Format baru perlu LLM analisa (~30-60 detik). Format dikenal langsung ~3-5 detik."
+          />
           <label
             htmlFor="file-input"
             className="block border-2 border-dashed border-line rounded-2xl py-10 px-6 text-center cursor-pointer hover:border-brand-orange hover:bg-brand-orange-soft transition-colors"
