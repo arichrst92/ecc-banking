@@ -69,7 +69,7 @@ export function ChartLine({
         tooltip: {
           callbacks: {
             label(ctx) {
-              const val = ctx.parsed.y;
+              const val = ctx.parsed.y ?? 0;
               return ` ${ctx.dataset.label}: ${new Intl.NumberFormat("id-ID", {
                 style: "currency",
                 currency,
