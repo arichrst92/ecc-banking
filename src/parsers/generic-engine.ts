@@ -225,7 +225,7 @@ function extractAccountNumber(
     const re = new RegExp(spec.pattern, "i");
     for (const row of rows) {
       const m = (row[0] ?? "").match(re);
-      if (m) return m[spec.group ?? 1].replace(/\s+/g, "");
+      if (m) return (m[spec.group ?? 1] ?? "").replace(/\s+/g, "");
     }
     return "";
   } else {
@@ -240,21 +240,24 @@ function extractCurrency(
   headerRow?: string[]
 ): string {
   if (spec.mode === "fixed") {
-    return spec.value.toUpperCase();
+    // Guard: LLM kadang generate config tanpa value — fallback ke IDR
+    return (spec.value ?? "IDR").toString().toUpperCase();
   }
   let raw = "";
   if (spec.mode === "regex_line") {
     const re = new RegExp(spec.pattern, "i");
     for (const row of rows) {
       const m = (row[0] ?? "").match(re);
-      if (m) { raw = m[spec.group ?? 1]; break; }
+      if (m) { raw = m[spec.group ?? 1] ?? ""; break; }
     }
   } else if (spec.mode === "marker_column" && headerRow) {
     raw = headerRow[spec.column] ?? "";
   }
-  raw = raw.trim().toUpperCase();
-  if (spec.normalize) {
+  raw = (raw ?? "").toString().trim().toUpperCase();
+  if (spec.normalize && Array.isArray(spec.normalize)) {
     for (const n of spec.normalize) {
+      // Guard: LLM kadang generate normalize entry tanpa `from` atau `to`
+      if (!n || typeof n.from !== "string" || typeof n.to !== "string") continue;
       if (raw === n.from.toUpperCase()) return n.to.toUpperCase();
     }
   }
@@ -332,7 +335,7 @@ function parseRowAsTransaction(
     const cm = cols.amount_with_suffix.direction_marker_credit ?? "CR";
     const re = new RegExp(`^([\\d,.]+)\\s*(${escapeRe(dm)}|${escapeRe(cm)})$`, "i");
     const m = ar.match(re);
-    if (!m) return null;
+    if (!m || !m[1] || !m[2]) return null;
     const amount = parseNumber(m[1], config.number);
     if (m[2].toUpperCase() === cm.toUpperCase()) {
       direction = "in"; credit = amount;
