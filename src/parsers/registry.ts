@@ -4,13 +4,14 @@
 //   3. LLM bootstrap — analisa format baru, generate profile, parse
 
 import { bcaCsvAdapter } from "./bca-csv";
+import { westpacCsvAdapter } from "./westpac-csv";
 import { genericParse } from "./generic-engine";
 import { learnFormatProfile } from "./profile-learner";
 import { query } from "@/lib/db";
 import type { ParseAdapter, ParseResult } from "./types";
 import type { FormatProfileConfig } from "./profile-config";
 
-const hardcodedAdapters: ParseAdapter[] = [bcaCsvAdapter];
+const hardcodedAdapters: ParseAdapter[] = [bcaCsvAdapter, westpacCsvAdapter];
 
 export interface DetectResult {
   result: ParseResult;
