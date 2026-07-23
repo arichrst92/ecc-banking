@@ -37,3 +37,68 @@
   }
   .form-label { @apply block text-[11px] font-medium text-ink-2 uppercase tracking-wider mb-1; }
 }
+
+/* ─── Print layout untuk laporan (Save as PDF via browser) ─── */
+@media print {
+  /* Reset page */
+  @page {
+    size: A4;
+    margin: 12mm 12mm 16mm 12mm;
+  }
+
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 10pt;
+  }
+
+  /* Hide sidebar + shift main content ke kiri */
+  aside, nav, [data-print="hide"] {
+    display: none !important;
+  }
+  main {
+    margin-left: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Hide interactive filter form, buttons, drilldown tabs */
+  form[data-print="hide-filter"],
+  .print-hide {
+    display: none !important;
+  }
+
+  /* Show print-only elements */
+  .print-only {
+    display: block !important;
+  }
+
+  /* Cards: flatten shadow, keep border tipis untuk readability */
+  .card, .stat-card {
+    box-shadow: none !important;
+    border: 1px solid #ddd !important;
+    border-radius: 6px !important;
+    padding: 10px !important;
+    margin-bottom: 8px !important;
+    page-break-inside: avoid;
+  }
+
+  /* Chart canvas: constrain height so nggak overflow ke halaman berikutnya */
+  canvas {
+    max-height: 300px !important;
+  }
+
+  /* Tabel */
+  table { font-size: 9pt; page-break-inside: auto; }
+  tr    { page-break-inside: avoid; page-break-after: auto; }
+  thead { display: table-header-group; }
+
+  /* Link biar nggak underline saat print */
+  a { color: inherit !important; text-decoration: none !important; }
+
+  /* Chip tetap visible tapi flat */
+  .chip { border: 1px solid #ccc !important; background: #fff !important; }
+}
+
+/* Print-only elements di-hide di layar normal */
+.print-only { display: none; }

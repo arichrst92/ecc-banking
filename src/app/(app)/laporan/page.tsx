@@ -7,6 +7,7 @@ import { formatMoney, formatDate } from "@/lib/format";
 import { ChartLine } from "@/components/chart-line";
 import { ChartDoughnut } from "@/components/chart-doughnut";
 import { CascadeSelect } from "@/components/cascade-select";
+import { PrintButton } from "@/components/print-button";
 import { getCascadeOptions, buildTxWhere } from "@/lib/hierarchy";
 import { getViewMode, getDisplayFormatter } from "@/lib/view-mode";
 
@@ -167,6 +168,25 @@ export default async function LaporanPage({
     return `/laporan?${qs}`;
   };
 
+  // ── Print context (nama-nama untuk header printable) ──
+  const selectedBranchName =
+    filterBranchId
+      ? cascade.branches.find((b) => b.id === filterBranchId)?.name ?? "—"
+      : "Semua Cabang (Konsolidasi)";
+  const selectedSegmentName = filterSegmentId
+    ? cascade.segments.find((s) => s.id === filterSegmentId)?.name ?? "—"
+    : "Semua Tipe Dana";
+  const selectedSubName = filterSubId
+    ? cascade.subs.find((s) => s.id === filterSubId)?.name ?? "—"
+    : "Semua Sub Tipe Dana";
+  const selectedAccount = filterAccountId
+    ? cascade.accounts.find((a) => a.id === filterAccountId)
+    : null;
+  const printedAt = new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "full",
+    timeStyle: "short",
+  }).format(new Date());
+
   return (
     <>
       <Topbar
@@ -176,8 +196,54 @@ export default async function LaporanPage({
         viewMode={viewMode}
       />
 
+      {/* ─── Print-only header ───
+          Blok ini hanya muncul saat window.print() (dan di dalam PDF hasil save).
+          Berisi context filter aktif + timestamp cetak supaya laporan self-explanatory
+          walaupun sudah lepas dari browser.
+      */}
+      <div className="print-only mb-4" data-print="show">
+        <div className="border-b-2 border-black pb-3 mb-3">
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-[16pt] font-bold">ECC Global Finance</h1>
+              <p className="text-[10pt] text-gray-700">Laporan Keuangan Cabang</p>
+            </div>
+            <div className="text-right text-[9pt] text-gray-600">
+              <div>Dicetak: {printedAt}</div>
+              <div>Oleh: {session.role === "global" ? "Global Admin" : `Cabang (id: ${session.branchId})`}</div>
+              {viewMode === "usd" && (
+                <div className="font-semibold text-black mt-1">💲 Semua nilai dalam USD (converted)</div>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[10pt]">
+          <div><span className="text-gray-600">Periode</span> : <strong>{formatDate(period.from)} — {formatDate(period.to)}</strong></div>
+          <div><span className="text-gray-600">Cabang</span> : <strong>{selectedBranchName}</strong></div>
+          <div><span className="text-gray-600">Tipe Dana</span> : <strong>{selectedSegmentName}</strong></div>
+          <div><span className="text-gray-600">Sub Tipe Dana</span> : <strong>{selectedSubName}</strong></div>
+          {selectedAccount && (
+            <div className="col-span-2">
+              <span className="text-gray-600">Rekening</span> :{" "}
+              <strong>
+                {selectedAccount.bank} — {selectedAccount.account_number} · {selectedAccount.purpose}
+              </strong>
+            </div>
+          )}
+          <div className="col-span-2">
+            <span className="text-gray-600">Tampilan Angka</span> :{" "}
+            <strong>{viewMode === "usd" ? "Konversi USD" : "Currency Asli (Multi-Currency)"}</strong>
+          </div>
+        </div>
+      </div>
+
+      {/* Tombol Cetak PDF — sembunyikan saat print sendiri */}
+      <div className="flex justify-end mb-4 print-hide">
+        <PrintButton label="Cetak PDF" className="btn btn-primary" />
+      </div>
+
       {/* Filter bar — cascade */}
-      <div className="card mb-4">
+      <div className="card mb-4 print-hide">
         <div className="text-[10px] uppercase tracking-wider text-ink-3 font-semibold mb-3">
           Filter Lokasi Dana + Periode
         </div>
@@ -260,9 +326,9 @@ export default async function LaporanPage({
         </form>
       </div>
 
-      {/* Tab rekening (kalau cabang dipilih) */}
+      {/* Tab rekening (kalau cabang dipilih) — hide di print */}
       {filterBranchId && cascade.accounts.length > 0 && (
-        <div className="card mb-4">
+        <div className="card mb-4 print-hide">
           <div className="text-[10px] uppercase tracking-wider text-ink-3 font-semibold mb-2">
             Rekening — pilih untuk drill-down
           </div>

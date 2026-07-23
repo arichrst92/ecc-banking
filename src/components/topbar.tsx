@@ -10,7 +10,7 @@ export function Topbar({
 }) {
   const [first, ...rest] = title.split(" ");
   return (
-    <div className="flex items-center justify-between mb-6">
+    <div className="flex items-center justify-between mb-6 print-hide">
       <div>
         <h1 className="font-serif text-2xl text-navy font-light">
           {first} <span className="font-semibold">{rest.join(" ")}</span>
