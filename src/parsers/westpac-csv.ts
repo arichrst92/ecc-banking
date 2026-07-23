@@ -94,24 +94,32 @@ export const westpacCsvAdapter: ParseAdapter = {
     if (!accountNumber) throw new Error("Nomor rekening tidak ditemukan di file Westpac CSV");
     if (transactions.length === 0) throw new Error("Tidak ada transaksi terdeteksi");
 
-    // Derive period dari min/max tx_date
-    const sortedDates = transactions.map((t) => t.tx_date).sort();
-    const dateFrom = sortedDates[0];
-    const dateTo = sortedDates[sortedDates.length - 1];
+    // Deteksi urutan file: Westpac umumnya reverse-chrono (newest first).
+    // Kalau tx pertama di file lebih baru dari tx terakhir, file reverse-chrono
+    // → reverse array supaya urutan jadi chronological murni (termasuk within-day).
+    const firstDate = transactions[0].tx_date;
+    const lastDate = transactions[transactions.length - 1].tx_date;
+    const isReverseChrono = firstDate > lastDate;
+    const chrono = isReverseChrono ? [...transactions].reverse() : transactions;
 
-    // Derive opening/closing balance dari sorted transactions
-    const sortedTx = [...transactions].sort((a, b) => a.tx_date.localeCompare(b.tx_date));
+    // Derive period dari min/max tx_date
+    const dateFrom = chrono[0].tx_date;
+    const dateTo = chrono[chrono.length - 1].tx_date;
+
+    // Derive opening/closing balance dari chronological order
     let openingBalance: number | null = null;
     let closingBalance: number | null = null;
 
-    const firstWithBalance = sortedTx.find((t) => t.balance !== null);
-    if (firstWithBalance) {
-      // opening = balance setelah tx pertama - net dari tx pertama
-      openingBalance = firstWithBalance.balance! - firstWithBalance.credit + firstWithBalance.debit;
+    // Opening = balance dari tx pertama chronological MINUS net effect tx tsb
+    // (karena balance kolom = saldo SESUDAH tx applied)
+    const first = chrono.find((t) => t.balance !== null);
+    if (first) {
+      openingBalance = first.balance! - first.credit + first.debit;
     }
-    for (let i = sortedTx.length - 1; i >= 0; i--) {
-      if (sortedTx[i].balance !== null) {
-        closingBalance = sortedTx[i].balance;
+    // Closing = balance dari tx terakhir chronological
+    for (let i = chrono.length - 1; i >= 0; i--) {
+      if (chrono[i].balance !== null) {
+        closingBalance = chrono[i].balance;
         break;
       }
     }
