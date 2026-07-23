@@ -137,7 +137,7 @@ function parseAmount(raw: string): number {
 }
 
 function normalizeCurrency(raw: string): string {
-  const trim = raw.trim().toUpperCase();
+  const trim = (raw ?? "").toString().trim().toUpperCase();
   if (trim === "RP" || trim === "IDR") return "IDR";
   if (trim === "USD" || trim === "$") return "USD";
   if (trim === "SGD" || trim === "S$") return "SGD";
@@ -174,7 +174,7 @@ function parseTxRow(row: string[], periodFrom: string | null): ParsedTransaction
 
   // Amount: "7,083,000.00 DB" / "91,212,000.00 CR"
   const am = amountRaw.match(/^([\d,]+\.?\d*)\s*(DB|CR)$/i);
-  if (!am) return null;
+  if (!am || !am[1] || !am[2]) return null;
   const amount = parseAmount(am[1]);
   const direction = am[2].toUpperCase() === "CR" ? "in" : "out";
 
