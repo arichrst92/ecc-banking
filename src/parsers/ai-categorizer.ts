@@ -143,56 +143,101 @@ export async function batchCategorize(
     is_system: c.is_system,
   }));
 
-  const txList = transactions.map((t, i) => ({
-    index: i,
-    desc: t.description,
-    direction: t.direction,
-    amount: t.direction === "in" ? t.credit : t.debit,
-  }));
-
-  const userPrompt = `
-KATEGORI TERSEDIA:
-${JSON.stringify(categoryList, null, 2)}
-
-TRANSAKSI UNTUK DIKLASIFIKASI (${transactions.length} total):
-${JSON.stringify(txList, null, 2)}
-`.trim();
-
-  const response = await client.messages.create({
-    model,
-    max_tokens: maxTokens,
-    system: SYSTEM_PROMPT,
-    tools: [TOOL as any],
-    tool_choice: { type: "tool", name: TOOL.name } as any,
-    messages: [{ role: "user", content: userPrompt }],
-  });
-
-  const toolBlock = response.content.find((c: any) => c.type === "tool_use") as any;
-  if (!toolBlock) {
-    // Fallback: keyword
-    return batchCategorize(accountId, transactions, categories);
-  }
-
-  const input = toolBlock.input as {
-    classifications: Array<{ index: number; category_id: number; confidence: number; reason: string }>;
-  };
-
-  const classifications: Record<string, TxClassification> = {};
   const fallbackCat = categories.find((c) => c.is_system);
   if (!fallbackCat) {
     throw new Error("Kategori system 'Lain-lain' tidak ditemukan. Jalankan seed migration.");
   }
 
-  // Build by index
-  const aiByIndex = new Map<number, { category_id: number; confidence: number; reason: string }>();
-  for (const c of input.classifications) {
-    aiByIndex.set(c.index, c);
+  // Chunk transactions supaya output tidak overflow max_tokens.
+  // Setiap klasifikasi ~50-80 tokens (index+category_id+confidence+reason string).
+  // Batas aman: 100 tx per chunk → ~5000-8000 output tokens.
+  const CHUNK_SIZE = 100;
+  const chunks: typeof transactions[] = [];
+  for (let i = 0; i < transactions.length; i += CHUNK_SIZE) {
+    chunks.push(transactions.slice(i, i + CHUNK_SIZE));
   }
 
+  // Akumulasi hasil per chunk. AI index dalam chunk relatif 0-based;
+  // kita map balik ke global index dengan offset.
+  const aiByGlobalIndex = new Map<number, { category_id: number; confidence: number; reason: string }>();
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let anyChunkFailed = false;
+
+  for (let ci = 0; ci < chunks.length; ci++) {
+    const chunkTx = chunks[ci];
+    const offset = ci * CHUNK_SIZE;
+
+    const txList = chunkTx.map((t, i) => ({
+      index: i,
+      desc: t.description,
+      direction: t.direction,
+      amount: t.direction === "in" ? t.credit : t.debit,
+    }));
+
+    const userPrompt = `
+KATEGORI TERSEDIA:
+${JSON.stringify(categoryList, null, 2)}
+
+TRANSAKSI UNTUK DIKLASIFIKASI (batch ${ci + 1}/${chunks.length}, ${chunkTx.length} tx):
+${JSON.stringify(txList, null, 2)}
+`.trim();
+
+    try {
+      const response = await client.messages.create({
+        model,
+        max_tokens: maxTokens,
+        system: SYSTEM_PROMPT,
+        tools: [TOOL as any],
+        tool_choice: { type: "tool", name: TOOL.name } as any,
+        messages: [{ role: "user", content: userPrompt }],
+      });
+
+      totalInputTokens += response.usage.input_tokens;
+      totalOutputTokens += response.usage.output_tokens;
+
+      const toolBlock = response.content.find((c: any) => c.type === "tool_use") as any;
+      const inputData = toolBlock?.input;
+
+      // Guard: bisa jadi undefined kalau response truncated / malformed
+      if (
+        !inputData ||
+        !Array.isArray(inputData.classifications)
+      ) {
+        console.error(
+          `[ai-categorizer] Chunk ${ci + 1}/${chunks.length} response tidak valid.`,
+          "stop_reason:", response.stop_reason,
+          "has_toolblock:", !!toolBlock
+        );
+        anyChunkFailed = true;
+        continue; // biar keyword fallback yang isi
+      }
+
+      for (const c of inputData.classifications) {
+        if (
+          c &&
+          typeof c.index === "number" &&
+          typeof c.category_id === "number"
+        ) {
+          aiByGlobalIndex.set(c.index + offset, {
+            category_id: c.category_id,
+            confidence: typeof c.confidence === "number" ? c.confidence : 0.5,
+            reason: typeof c.reason === "string" ? c.reason : "",
+          });
+        }
+      }
+    } catch (e: any) {
+      console.error(`[ai-categorizer] Chunk ${ci + 1}/${chunks.length} error:`, e?.message ?? e);
+      anyChunkFailed = true;
+      // continue ke chunk berikutnya
+    }
+  }
+
+  // Build final classifications — pakai AI kalau ada, fallback keyword kalau miss
+  const classifications: Record<string, TxClassification> = {};
   for (const { index, dup_hash, tx } of hashByIndex) {
-    const ai = aiByIndex.get(index);
+    const ai = aiByGlobalIndex.get(index);
     if (ai) {
-      // Validate category exists
       const cat = categories.find((c) => c.id === ai.category_id);
       if (cat) {
         classifications[dup_hash] = {
@@ -205,7 +250,7 @@ ${JSON.stringify(txList, null, 2)}
         continue;
       }
     }
-    // Fallback per tx kalau AI miss atau category_id invalid
+    // Fallback: keyword categorize
     const catId = keywordCategorize(tx.description_normalized, tx.direction, categories);
     const cat = categories.find((c) => c.id === catId);
     classifications[dup_hash] = {
@@ -219,16 +264,14 @@ ${JSON.stringify(txList, null, 2)}
     };
   }
 
-  const inputTokens = response.usage.input_tokens;
-  const outputTokens = response.usage.output_tokens;
-  const cost = estimateCost(model, inputTokens, outputTokens);
+  const cost = estimateCost(model, totalInputTokens, totalOutputTokens);
 
   return {
     method: "ai",
-    model,
+    model: anyChunkFailed ? `${model} (partial — beberapa chunk fallback)` : model,
     computed_at: computedAt,
-    input_tokens: inputTokens,
-    output_tokens: outputTokens,
+    input_tokens: totalInputTokens,
+    output_tokens: totalOutputTokens,
     cost_usd: cost,
     classifications,
   };
