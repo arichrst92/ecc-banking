@@ -139,6 +139,26 @@ export default async function TransaksiPage({
   const totalCount = Number(total?.count ?? 0);
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
+  // Aggregate total debit/credit per currency untuk header PDF.
+  // Query terpisah supaya total SEMUA row sesuai filter (bukan cuma current page).
+  type TotalsRow = {
+    currency: string;
+    total_debit: string;
+    total_credit: string;
+    tx_count: string;
+  };
+  const totalsPerCurrency = await query<TotalsRow>(
+    `SELECT t.currency,
+            COALESCE(SUM(t.debit), 0)::TEXT  AS total_debit,
+            COALESCE(SUM(t.credit), 0)::TEXT AS total_credit,
+            COUNT(*)::TEXT                   AS tx_count
+       FROM transactions t
+      WHERE ${whereSql}
+      GROUP BY t.currency
+      ORDER BY t.currency`,
+    params
+  );
+
   // Data — kalau printMode, tidak pakai LIMIT (fetch semua row untuk PDF lengkap)
   const dataParams = printMode ? params : [...params, PAGE_SIZE, (page - 1) * PAGE_SIZE];
   const limitClause = printMode
@@ -299,6 +319,48 @@ export default async function TransaksiPage({
             <strong>{printMode ? `${totalCount} (semua)` : `${txs.length} dari ${totalCount}`}</strong>
           </div>
         </div>
+
+        {/* ─── Ringkasan Total Debit / Kredit per currency ─── */}
+        {totalsPerCurrency.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-gray-400">
+            <div className="text-[9pt] text-gray-600 mb-1 uppercase tracking-wider font-semibold">
+              Ringkasan Total (sesuai filter)
+            </div>
+            <table className="w-full text-[10pt] border-collapse">
+              <thead>
+                <tr className="border-b border-gray-400">
+                  <th className="text-left py-1 pr-3 font-semibold text-gray-700">Currency</th>
+                  <th className="text-right py-1 pr-3 font-semibold text-gray-700">Jumlah Tx</th>
+                  <th className="text-right py-1 pr-3 font-semibold text-gray-700">Total Debit (Keluar)</th>
+                  <th className="text-right py-1 pr-3 font-semibold text-gray-700">Total Kredit (Masuk)</th>
+                  <th className="text-right py-1 font-semibold text-gray-700">Net</th>
+                </tr>
+              </thead>
+              <tbody>
+                {totalsPerCurrency.map((t) => {
+                  const debit = parseFloat(t.total_debit);
+                  const credit = parseFloat(t.total_credit);
+                  const net = credit - debit;
+                  return (
+                    <tr key={t.currency} className="border-b border-gray-200">
+                      <td className="py-1 pr-3 font-semibold">{t.currency}</td>
+                      <td className="py-1 pr-3 text-right">{t.tx_count}</td>
+                      <td className="py-1 pr-3 text-right">{fmt(debit, t.currency)}</td>
+                      <td className="py-1 pr-3 text-right">{fmt(credit, t.currency)}</td>
+                      <td
+                        className={`py-1 text-right font-semibold ${
+                          net >= 0 ? "text-black" : "text-red-700"
+                        }`}
+                      >
+                        {net >= 0 ? "+" : ""}{fmt(net, t.currency)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Action bar — tombol print (hide saat print sendiri) */}
