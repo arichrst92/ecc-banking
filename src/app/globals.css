@@ -68,9 +68,10 @@
     display: none !important;
   }
 
-  /* Show print-only elements */
+  /* Show print-only elements — pakai `revert` supaya display default per tag
+     (span inline, div block, dst.) — bukan force block yang break span layout */
   .print-only {
-    display: block !important;
+    display: revert !important;
   }
 
   /* Cards: flatten shadow, keep border tipis untuk readability */

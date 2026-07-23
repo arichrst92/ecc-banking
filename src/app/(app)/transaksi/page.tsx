@@ -5,6 +5,8 @@ import { query, queryOne } from "@/lib/db";
 import { formatDate, formatMoney } from "@/lib/format";
 import { getCascadeOptions, buildTxWhere } from "@/lib/hierarchy";
 import { CascadeSelect } from "@/components/cascade-select";
+import { PrintButton } from "@/components/print-button";
+import { AutoPrint } from "@/components/auto-print";
 import { getViewMode, getDisplayFormatter } from "@/lib/view-mode";
 import type { Category } from "@/lib/types";
 import { recategorizeAction } from "./actions";
@@ -53,6 +55,7 @@ export default async function TransaksiPage({
     to?: string;
     q?: string;
     page?: string;
+    print?: string; // "1" untuk mode print (fetch semua row + auto trigger window.print())
     err?: string;
     msg?: string;
   };
@@ -76,6 +79,7 @@ export default async function TransaksiPage({
   const filterTo = searchParams.to ?? null;
   const filterQ = (searchParams.q ?? "").trim();
   const page = Math.max(1, Number(searchParams.page ?? 1));
+  const printMode = searchParams.print === "1";
 
   // Load cascade options
   const cascade = await getCascadeOptions(
@@ -117,8 +121,13 @@ export default async function TransaksiPage({
     whereParts.push(`t.tx_date <= $${params.length}`);
   }
   if (filterQ) {
-    params.push(`%${filterQ.toUpperCase()}%`);
-    whereParts.push(`t.description_normalized LIKE $${params.length}`);
+    // ILIKE = case-insensitive LIKE (Postgres). Match di description RAW (bukan normalized)
+    // supaya user bisa search dengan case apapun ("susy" / "SUSY" / "Susy" semua match).
+    // Pattern %...% = partial substring match, jadi bisa cari fragment (mis. "OSKO" untuk
+    // "DEPOSIT-OSKO PAYMENT ..."). Escape wildcard char user supaya tidak jadi injection wildcard.
+    const escaped = filterQ.replace(/[\\%_]/g, (m) => "\\" + m);
+    params.push(`%${escaped}%`);
+    whereParts.push(`t.description ILIKE $${params.length}`);
   }
   const whereSql = whereParts.join(" AND ");
 
@@ -130,8 +139,11 @@ export default async function TransaksiPage({
   const totalCount = Number(total?.count ?? 0);
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-  // Data
-  const offsetParams = [...params, PAGE_SIZE, (page - 1) * PAGE_SIZE];
+  // Data — kalau printMode, tidak pakai LIMIT (fetch semua row untuk PDF lengkap)
+  const dataParams = printMode ? params : [...params, PAGE_SIZE, (page - 1) * PAGE_SIZE];
+  const limitClause = printMode
+    ? ""
+    : `LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`;
   const txs = await query<TxRow>(
     `SELECT t.id, t.tx_date::TEXT AS tx_date, t.description, t.bank_branch_code,
             t.debit::TEXT, t.credit::TEXT, t.balance::TEXT, t.direction, t.currency,
@@ -148,8 +160,8 @@ export default async function TransaksiPage({
        JOIN branches b ON b.id = t.branch_id
       WHERE ${whereSql}
       ORDER BY t.tx_date DESC, t.id DESC
-      LIMIT $${offsetParams.length - 1} OFFSET $${offsetParams.length}`,
-    offsetParams
+      ${limitClause}`,
+    dataParams
   );
 
   const categories = await query<Category>(
@@ -191,14 +203,115 @@ export default async function TransaksiPage({
     return `/transaksi?${qs}`;
   };
 
+  // ── Context lookup untuk print header ──
+  const selectedBranchName =
+    filterBranchId
+      ? cascade.branches.find((b) => b.id === filterBranchId)?.name ?? "—"
+      : "Semua Cabang";
+  const selectedSegmentName = filterSegmentId
+    ? cascade.segments.find((s) => s.id === filterSegmentId)?.name ?? "—"
+    : "Semua Tipe Dana";
+  const selectedSubName = filterSubId
+    ? cascade.subs.find((s) => s.id === filterSubId)?.name ?? "—"
+    : "Semua Sub Tipe Dana";
+  const selectedAccount = filterAccountId
+    ? cascade.accounts.find((a) => a.id === filterAccountId)
+    : null;
+  const selectedCategoryName = filterCategoryId
+    ? categories.find((c) => c.id === filterCategoryId)?.name ?? "—"
+    : "Semua Kategori";
+  const printedAt = new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "full",
+    timeStyle: "short",
+  }).format(new Date());
+
+  // URL untuk tombol "Cetak Semua" — copy semua filter aktif + tambah print=1
+  const printAllUrl = (() => {
+    const qs = new URLSearchParams(qsBase);
+    qs.delete("page");
+    qs.set("print", "1");
+    return `/transaksi?${qs}`;
+  })();
+
   return (
     <>
+      {/* Auto-print saat mode print=1 aktif (dinavigasi dari tombol "Cetak Semua") */}
+      {printMode && <AutoPrint />}
+
       <Topbar
         title="Transaksi"
         role={session.role}
         subtitle={`${totalCount} transaksi · halaman ${page} dari ${totalPages}`}
         viewMode={viewMode}
       />
+
+      {/* ─── Print-only header ─── */}
+      <div className="print-only mb-4" data-print="show">
+        <div className="border-b-2 border-black pb-3 mb-3">
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-[16pt] font-bold">ECC Global Finance</h1>
+              <p className="text-[10pt] text-gray-700">Daftar Transaksi</p>
+            </div>
+            <div className="text-right text-[9pt] text-gray-600">
+              <div>Dicetak: {printedAt}</div>
+              <div>Oleh: {session.role === "global" ? "Global Admin" : "Cabang"}</div>
+              {viewMode === "usd" && (
+                <div className="font-semibold text-black mt-1">💲 Semua nilai dalam USD (converted)</div>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[10pt]">
+          <div>
+            <span className="text-gray-600">Periode</span> :{" "}
+            <strong>
+              {filterFrom ? formatDate(filterFrom) : "—"} — {filterTo ? formatDate(filterTo) : "—"}
+            </strong>
+          </div>
+          <div><span className="text-gray-600">Cabang</span> : <strong>{selectedBranchName}</strong></div>
+          <div><span className="text-gray-600">Tipe Dana</span> : <strong>{selectedSegmentName}</strong></div>
+          <div><span className="text-gray-600">Sub Tipe Dana</span> : <strong>{selectedSubName}</strong></div>
+          {selectedAccount && (
+            <div className="col-span-2">
+              <span className="text-gray-600">Rekening</span> :{" "}
+              <strong>
+                {selectedAccount.bank} — {selectedAccount.account_number} · {selectedAccount.purpose}
+              </strong>
+            </div>
+          )}
+          <div><span className="text-gray-600">Kategori</span> : <strong>{selectedCategoryName}</strong></div>
+          <div>
+            <span className="text-gray-600">Arah</span> :{" "}
+            <strong>{filterDirection === "in" ? "Masuk" : filterDirection === "out" ? "Keluar" : "Semua"}</strong>
+          </div>
+          {filterQ && (
+            <div className="col-span-2">
+              <span className="text-gray-600">Kata Kunci</span> : <strong>"{filterQ}"</strong>
+            </div>
+          )}
+          <div>
+            <span className="text-gray-600">Tampilan Angka</span> :{" "}
+            <strong>{viewMode === "usd" ? "Konversi USD" : "Currency Asli"}</strong>
+          </div>
+          <div>
+            <span className="text-gray-600">Jumlah Baris</span> :{" "}
+            <strong>{printMode ? `${totalCount} (semua)` : `${txs.length} dari ${totalCount}`}</strong>
+          </div>
+        </div>
+      </div>
+
+      {/* Action bar — tombol print (hide saat print sendiri) */}
+      <div className="flex justify-end gap-2 mb-4 print-hide">
+        <PrintButton label="Cetak PDF (halaman ini)" className="btn btn-outline" />
+        <Link
+          href={printAllUrl}
+          className="btn btn-primary"
+          title="Fetch semua transaksi sesuai filter + auto-open dialog print"
+        >
+          🖨 Cetak Semua ({totalCount})
+        </Link>
+      </div>
 
       {searchParams.err && (
         <div className="card bg-[#fef3f2] border-[#f5c5c2] mb-4">
@@ -212,7 +325,7 @@ export default async function TransaksiPage({
       )}
 
       {uploadInfo && (
-        <div className="card bg-brand-orange-soft border-brand-orange/30 mb-4">
+        <div className="card bg-brand-orange-soft border-brand-orange/30 mb-4 print-hide">
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="text-[12px] font-semibold text-navy">
@@ -230,8 +343,8 @@ export default async function TransaksiPage({
         </div>
       )}
 
-      {/* Filter — cascade */}
-      <div className="card mb-4">
+      {/* Filter — cascade — hide saat print */}
+      <div className="card mb-4 print-hide">
         <div className="text-[10px] uppercase tracking-wider text-ink-3 font-semibold mb-3">
           Filter Lokasi Dana
         </div>
@@ -408,7 +521,8 @@ export default async function TransaksiPage({
                       )}
                     </td>
                     <td className="py-2 px-2">
-                      <form action={recategorizeAction.bind(null, t.id)} className="inline">
+                      {/* Interactive select — hide di print */}
+                      <form action={recategorizeAction.bind(null, t.id)} className="inline print-hide">
                         <select
                           name="category_id"
                           defaultValue={t.category_id}
@@ -421,6 +535,13 @@ export default async function TransaksiPage({
                           ))}
                         </select>
                       </form>
+                      {/* Print-only: text kategori dengan warna */}
+                      <span
+                        className="print-only text-[10pt]"
+                        style={{ borderLeft: `3px solid ${t.category_color}`, paddingLeft: 6 }}
+                      >
+                        {t.category_name}
+                      </span>
                     </td>
                     <td className="py-2 px-2 text-right text-bad-2 whitespace-nowrap">
                       {parseFloat(t.debit) > 0 ? fmt(t.debit, t.currency) : ""}
@@ -436,7 +557,7 @@ export default async function TransaksiPage({
         )}
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4 text-[12px]">
+          <div className="flex items-center justify-between mt-4 text-[12px] print-hide">
             <div className="text-ink-3">
               Halaman {page} dari {totalPages} · {totalCount} total
             </div>
