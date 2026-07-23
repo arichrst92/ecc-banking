@@ -216,6 +216,24 @@ export function genericParse(
 
 // ─── Helpers ───
 
+/**
+ * Normalisasi nomor rekening: strip semua non-digit (spasi, dash, dot, BOM,
+ * karakter tak terlihat). DB simpan hanya digit (validasi via zod
+ * `/^\d+$/`) — extraction dari CSV wajib match format ini supaya lookup
+ * di uploadFileAction menemukan row-nya.
+ *
+ * Contoh normalisasi:
+ *   "1234-5678-90"        → "1234567890"
+ *   "  1234 5678 90  "    → "1234567890"
+ *   "﻿No:1234567890" → "1234567890"
+ *   "1234567890.001"      → "1234567890001"  ← BEWARE: sub-account jadi digabung
+ *                                              (kalau bank kamu pakai sub-account,
+ *                                              perlu handle terpisah)
+ */
+function normalizeAccountNumber(raw: string): string {
+  return (raw ?? "").replace(/\D+/g, "");
+}
+
 function extractAccountNumber(
   spec: FormatProfileConfig["account_number"],
   rows: string[][],
@@ -225,12 +243,12 @@ function extractAccountNumber(
     const re = new RegExp(spec.pattern, "i");
     for (const row of rows) {
       const m = (row[0] ?? "").match(re);
-      if (m) return (m[spec.group ?? 1] ?? "").replace(/\s+/g, "");
+      if (m) return normalizeAccountNumber(m[spec.group ?? 1] ?? "");
     }
     return "";
   } else {
     if (!headerRow) return "";
-    return (headerRow[spec.column] ?? "").replace(/\s+/g, "");
+    return normalizeAccountNumber(headerRow[spec.column] ?? "");
   }
 }
 

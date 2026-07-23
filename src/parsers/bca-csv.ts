@@ -58,7 +58,7 @@ export const bcaCsvAdapter: ParseAdapter = {
       if (!inTable) {
         // Header metadata
         let m = cell0.match(/^No\.\s*rekening\s*:\s*(\d+)/i);
-        if (m) { accountNumber = m[1]; continue; }
+        if (m) { accountNumber = m[1].replace(/\D+/g, ""); continue; }
 
         m = cell0.match(/^Periode\s*:\s*(\d{2}\/\d{2}\/\d{4})\s*-\s*(\d{2}\/\d{2}\/\d{4})/i);
         if (m) {

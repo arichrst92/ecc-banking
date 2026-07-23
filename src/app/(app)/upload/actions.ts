@@ -36,7 +36,10 @@ export async function uploadFileAction(formData: FormData) {
   }
   const parsed = detected.result;
 
-  // 2) Match account by account_number
+  // 2) Match account by account_number — normalize both sides (strip non-digits)
+  // supaya kalau CSV ada dash/spasi tapi DB simpan digit-only masih ke-match.
+  const normalizedParsedAccount = (parsed.account_number ?? "").replace(/\D+/g, "");
+
   const account = await queryOne<{
     id: number;
     branch_id: number;
@@ -51,14 +54,27 @@ export async function uploadFileAction(formData: FormData) {
             b.name AS branch_name
        FROM accounts a
        JOIN branches b ON b.id = a.branch_id
-      WHERE a.account_number = $1`,
-    [parsed.account_number]
+      WHERE a.account_number = $1
+         OR REGEXP_REPLACE(a.account_number, '\\D', '', 'g') = $1
+      LIMIT 1`,
+    [normalizedParsedAccount]
   );
 
   if (!account) {
+    // Kumpulkan sample account numbers untuk hint debug — batasi 5 supaya URL nggak overflow
+    const sampleAccounts = await db.query<{ bank: string; account_number: string; branch_name: string }>(
+      `SELECT a.bank, a.account_number, b.name AS branch_name
+         FROM accounts a
+         JOIN branches b ON b.id = a.branch_id
+        ORDER BY a.id
+        LIMIT 5`
+    );
+    const hint = sampleAccounts.rows.length > 0
+      ? ` Contoh terdaftar: ${sampleAccounts.rows.map((r) => `${r.bank} ${r.account_number}`).join(", ")}`
+      : " (Belum ada rekening di DB — tambahkan dulu via Kelola Cabang.)";
     redirect(
       `/upload?err=${encodeURIComponent(
-        `Rekening ${parsed.account_number} tidak terdaftar. Tambahkan via Kelola Cabang dulu.`
+        `Rekening "${parsed.account_number}" tidak terdaftar. ${hint}`
       )}`
     );
   }
