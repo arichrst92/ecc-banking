@@ -78,7 +78,6 @@ export default async function LoginPage({
 
         <div className="mt-7 pt-5 border-t border-white/10 flex items-center justify-center gap-2.5 flex-wrap">
           <span className="text-[10px] uppercase tracking-[0.15em] text-white/50">Powered by</span>
-          <span className="text-[11px] text-white/85 font-semibold">PT Solusi Inovasi Bangsa</span>
           <span className="inline-flex items-center bg-white rounded-md px-2 py-1 shadow-sm">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/images/logo-idea.webp" alt="IDEA" className="h-3.5 w-auto" />
