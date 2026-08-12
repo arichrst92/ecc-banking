@@ -6,7 +6,7 @@ import { db, queryOne, tx } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import { detectAndParse } from "@/parsers/registry";
-import { saveUploadFile, deleteUploadFile } from "@/lib/upload-storage";
+import { saveUploadFile, deleteUploadFile, toParsableText } from "@/lib/upload-storage";
 
 export async function uploadFileAction(formData: FormData) {
   const session = getSession();
@@ -22,7 +22,14 @@ export async function uploadFileAction(formData: FormData) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const content = buffer.toString("utf8");
+
+  // CSV dipakai apa adanya; PDF diekstrak text layer-nya jadi CSV dulu.
+  let content: string;
+  try {
+    content = await toParsableText(buffer, file.name);
+  } catch (e: any) {
+    redirect(`/upload?err=${encodeURIComponent(e?.message ?? "Gagal membaca isi file")}`);
+  }
 
   // 1) Parse — flow: hardcoded → format_profiles → LLM bootstrap (kalau ada API key)
   let detected;

@@ -3,6 +3,7 @@
 //   2. format_profiles dari DB (active) — generic engine + schema config
 //   3. LLM bootstrap — analisa format baru, generate profile, parse
 
+import { bcaGiroPdfAdapter } from "./bca-giro-pdf";
 import { bcaCsvAdapter } from "./bca-csv";
 import { westpacCsvAdapter } from "./westpac-csv";
 import { genericParse } from "./generic-engine";
@@ -11,7 +12,10 @@ import { query } from "@/lib/db";
 import type { ParseAdapter, ParseResult } from "./types";
 import type { FormatProfileConfig } from "./profile-config";
 
-const hardcodedAdapters: ParseAdapter[] = [bcaCsvAdapter, westpacCsvAdapter];
+// Urutan penting: bca-giro-pdf harus di depan bca-csv. detect() milik bca-csv
+// longgar (hanya cek "No. rekening :") sehingga ikut cocok dengan teks PDF giro,
+// padahal parse()-nya pasti gagal untuk format itu.
+const hardcodedAdapters: ParseAdapter[] = [bcaGiroPdfAdapter, bcaCsvAdapter, westpacCsvAdapter];
 
 export interface DetectResult {
   result: ParseResult;

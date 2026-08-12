@@ -3,7 +3,7 @@
 
 import { writeFile, mkdir, readFile, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve, extname } from "node:path";
 
 function getUploadDir(): string {
   const d = process.env.UPLOAD_DIR ?? "./uploads";
@@ -26,8 +26,30 @@ export async function saveUploadFile(
   return path;
 }
 
+/**
+ * Ubah isi file mentah jadi teks yang bisa dimakan parser.
+ *
+ * CSV dikembalikan apa adanya. PDF diekstrak text layer-nya lalu diubah jadi
+ * CSV, sehingga sisa pipeline (generic-engine, format_profiles, LLM bootstrap)
+ * tidak perlu tahu bedanya.
+ *
+ * @param filename dipakai hanya untuk membaca ekstensi — boleh nama file asli
+ *                 maupun storage_path, karena storage_path mempertahankan
+ *                 ekstensi aslinya.
+ */
+export async function toParsableText(buffer: Buffer, filename: string): Promise<string> {
+  if (extname(filename).toLowerCase() === ".pdf") {
+    const { extractPdfAsCsv } = await import("./pdf-extract");
+    return await extractPdfAsCsv(buffer);
+  }
+  return buffer.toString("utf8");
+}
+
 export async function readUploadFile(storagePath: string): Promise<string> {
-  return await readFile(storagePath, "utf8");
+  // Sengaja dibaca sebagai Buffer, bukan utf8 string — decode utf8 pada PDF
+  // merusak isinya sebelum sempat diekstrak.
+  const buffer = await readFile(storagePath);
+  return await toParsableText(buffer, storagePath);
 }
 
 export async function deleteUploadFile(storagePath: string | null): Promise<void> {

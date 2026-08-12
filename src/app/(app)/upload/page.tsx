@@ -102,13 +102,13 @@ export default async function UploadPage({
               Klik untuk pilih file
             </div>
             <div className="text-[11px] text-ink-3 mt-1" id="file-subtitle">
-              Upload file CSV dari mutasi perbankan bank apapun di sini
+              Upload file CSV atau PDF dari mutasi perbankan bank apapun di sini
             </div>
             <input
               id="file-input"
               name="file"
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,.pdf,text/csv,application/pdf"
               required
               className="hidden"
             />
@@ -125,6 +125,10 @@ export default async function UploadPage({
           <p className="text-[11px] text-ink-3 text-center">
             Format baru memakan waktu 10–30 detik (LLM analisa struktur + klasifikasi kategori).
             Format yang sudah dikenal: ~3-5 detik.
+          </p>
+          <p className="text-[11px] text-ink-3 text-center">
+            Untuk PDF, gunakan e-statement asli hasil download dari internet banking.
+            Hasil scan atau foto belum didukung.
           </p>
 
           <script
