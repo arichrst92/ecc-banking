@@ -169,6 +169,10 @@
 /* Print-only elements di-hide di layar normal */
 .print-only { display: none; }
 
+/* Sembunyikan scrollbar (dipakai dock bottom-nav yang bisa di-scroll di layar sempit) */
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
 /* ── Laporan Fiskal: garis pemisah antar kolom di layar ── */
 .fiskal-report table { border-collapse: collapse; }
 .fiskal-report table th,
