@@ -67,6 +67,9 @@ const SETTINGS: Item[] = [
   { href: "/kode-akses", label: "Kode Akses", icon: "kode" },
 ];
 
+const popCls =
+  "absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2 w-[min(90vw,15rem)] rounded-xl border border-line bg-white p-1.5 shadow-2xl";
+
 export function BottomNav({ role, branchName }: { role: "global" | "branch"; branchName: string }) {
   const pathname = usePathname();
   const [open, setOpen] = useState<"settings" | "account" | null>(null);
@@ -82,16 +85,12 @@ export function BottomNav({ role, branchName }: { role: "global" | "branch"; bra
   return (
     <>
       {open && (
-        <button
-          aria-label="Tutup menu"
-          className="fixed inset-0 z-40 cursor-default"
-          onClick={() => setOpen(null)}
-        />
+        <button aria-label="Tutup menu" className="fixed inset-0 z-40 cursor-default" onClick={() => setOpen(null)} />
       )}
 
       <div className="fixed inset-x-0 bottom-0 z-50 pointer-events-none print-hide">
-        <div className="mx-auto mb-3 w-fit max-w-[calc(100%-12px)] pointer-events-auto">
-          <nav className="relative flex items-stretch gap-0.5 rounded-2xl border border-white/10 bg-brand-black/95 px-1.5 py-1.5 shadow-2xl backdrop-blur-md overflow-x-auto no-scrollbar">
+        <div className="relative mx-auto mb-3 w-fit max-w-[calc(100%-12px)] pointer-events-auto">
+          <nav className="flex items-stretch gap-0.5 overflow-x-auto rounded-2xl border border-white/10 bg-brand-black/95 px-1.5 py-1.5 shadow-2xl backdrop-blur-md no-scrollbar">
             {/* Logo ECC */}
             <Link href="/dashboard" aria-label="ECC Global Finance" onClick={() => setOpen(null)} className="flex shrink-0 items-center self-center pl-1 pr-1.5">
               <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white p-1 shadow-sm">
@@ -109,70 +108,70 @@ export function BottomNav({ role, branchName }: { role: "global" | "branch"; bra
             ))}
 
             {role === "global" && (
-              <div className="relative shrink-0">
-                <button
-                  type="button"
-                  className={itemCls(settingsActive || open === "settings")}
-                  onClick={() => setOpen(open === "settings" ? null : "settings")}
-                  aria-expanded={open === "settings"}
-                >
-                  <Icon name="settings" className="w-5 h-5" />
-                  <span className="text-[9px] font-medium leading-none">Pengaturan</span>
-                </button>
-                {open === "settings" && (
-                  <div className="absolute bottom-[calc(100%+10px)] right-0 w-56 rounded-xl border border-line bg-white p-1.5 shadow-2xl">
-                    <div className="px-2.5 py-1 text-[9px] uppercase tracking-wider text-ink-3">Pengaturan</div>
-                    {SETTINGS.map((s) => (
-                      <Link
-                        key={s.href}
-                        href={s.href}
-                        onClick={() => setOpen(null)}
-                        className={cn(
-                          "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px]",
-                          isActive(s.href) ? "bg-brand-orange/10 text-brand-orange font-medium" : "text-ink hover:bg-cream-2"
-                        )}
-                      >
-                        <Icon name={s.icon} className="w-[18px] h-[18px]" />
-                        {s.label}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <button
+                type="button"
+                className={itemCls(settingsActive || open === "settings")}
+                onClick={() => setOpen(open === "settings" ? null : "settings")}
+                aria-expanded={open === "settings"}
+              >
+                <Icon name="settings" className="w-5 h-5" />
+                <span className="text-[9px] font-medium leading-none">Pengaturan</span>
+              </button>
             )}
 
             <div className="mx-0.5 w-px shrink-0 self-stretch bg-white/10" />
 
-            <div className="relative shrink-0">
-              <button
-                type="button"
-                className={itemCls(open === "account")}
-                onClick={() => setOpen(open === "account" ? null : "account")}
-                aria-expanded={open === "account"}
-              >
-                <Icon name="account" className="w-5 h-5" />
-                <span className="text-[9px] font-medium leading-none">Akun</span>
-              </button>
-              {open === "account" && (
-                <div className="absolute bottom-[calc(100%+10px)] right-0 w-56 rounded-xl border border-line bg-white p-1.5 shadow-2xl">
-                  <div className="px-2.5 py-2">
-                    <div className="text-[9px] uppercase tracking-wider text-ink-3">Sesi aktif</div>
-                    <div className="text-[13px] font-semibold text-navy">{role === "global" ? "Global Admin" : branchName}</div>
-                    <div className="text-[11px] text-ink-3">{role === "global" ? "Semua Cabang" : "Akses cabang"}</div>
-                  </div>
-                  <form action="/logout" method="post" className="px-1 pb-1">
-                    <button
-                      type="submit"
-                      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-[#c0392b] hover:bg-bad/10"
-                    >
-                      <Icon name="logout" className="w-[18px] h-[18px]" />
-                      Keluar
-                    </button>
-                  </form>
-                </div>
-              )}
-            </div>
+            <button
+              type="button"
+              className={itemCls(open === "account")}
+              onClick={() => setOpen(open === "account" ? null : "account")}
+              aria-expanded={open === "account"}
+            >
+              <Icon name="account" className="w-5 h-5" />
+              <span className="text-[9px] font-medium leading-none">Akun</span>
+            </button>
           </nav>
+
+          {/* Popover Pengaturan — di luar <nav> supaya tidak terpotong overflow */}
+          {open === "settings" && (
+            <div className={popCls}>
+              <div className="px-2.5 py-1 text-[9px] uppercase tracking-wider text-ink-3">Pengaturan</div>
+              {SETTINGS.map((s) => (
+                <Link
+                  key={s.href}
+                  href={s.href}
+                  onClick={() => setOpen(null)}
+                  className={cn(
+                    "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px]",
+                    isActive(s.href) ? "bg-brand-orange/10 text-brand-orange font-medium" : "text-ink hover:bg-cream-2"
+                  )}
+                >
+                  <Icon name={s.icon} className="w-[18px] h-[18px]" />
+                  {s.label}
+                </Link>
+              ))}
+            </div>
+          )}
+
+          {/* Popover Akun */}
+          {open === "account" && (
+            <div className={popCls}>
+              <div className="px-2.5 py-2">
+                <div className="text-[9px] uppercase tracking-wider text-ink-3">Sesi aktif</div>
+                <div className="text-[13px] font-semibold text-navy">{role === "global" ? "Global Admin" : branchName}</div>
+                <div className="text-[11px] text-ink-3">{role === "global" ? "Semua Cabang" : "Akses cabang"}</div>
+              </div>
+              <form action="/logout" method="post" className="px-1 pb-1">
+                <button
+                  type="submit"
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-[#c0392b] hover:bg-bad/10"
+                >
+                  <Icon name="logout" className="w-[18px] h-[18px]" />
+                  Keluar
+                </button>
+              </form>
+            </div>
+          )}
         </div>
       </div>
     </>
