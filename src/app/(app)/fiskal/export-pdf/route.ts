@@ -192,6 +192,7 @@ export async function GET(request: NextRequest) {
   const range = doc.bufferedPageRange();
   for (let i = 0; i < range.count; i++) {
     doc.switchToPage(range.start + i);
+    doc.page.margins.bottom = 0; // cegah pdfkit nambah halaman kosong saat tulis footer
     const fy = pageH - 30;
     doc.font("Helvetica").fontSize(7.5).fillColor("#8a8a8a").text("Powered by", M, fy, { lineBreak: false });
     const txtW = doc.widthOfString("Powered by");
