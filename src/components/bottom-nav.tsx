@@ -92,6 +92,15 @@ export function BottomNav({ role, branchName }: { role: "global" | "branch"; bra
       <div className="fixed inset-x-0 bottom-0 z-50 pointer-events-none print-hide">
         <div className="mx-auto mb-3 w-fit max-w-[calc(100%-12px)] pointer-events-auto">
           <nav className="relative flex items-stretch gap-0.5 rounded-2xl border border-white/10 bg-brand-black/95 px-1.5 py-1.5 shadow-2xl backdrop-blur-md overflow-x-auto no-scrollbar">
+            {/* Logo ECC */}
+            <Link href="/dashboard" aria-label="ECC Global Finance" onClick={() => setOpen(null)} className="flex shrink-0 items-center self-center pl-1 pr-1.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white p-1 shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/images/logo-ecc.webp" alt="ECC" className="max-h-full max-w-full object-contain" />
+              </span>
+            </Link>
+            <div className="mx-0.5 w-px shrink-0 self-stretch bg-white/10" />
+
             {MAIN.map((it) => (
               <Link key={it.href} href={it.href} className={itemCls(isActive(it.href))} onClick={() => setOpen(null)}>
                 <Icon name={it.icon} className="w-5 h-5" />
