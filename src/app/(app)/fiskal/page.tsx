@@ -118,12 +118,22 @@ export default async function FiskalPage({
           showView={true}
           current={{ year: String(year), currency: displayCurrency, branch: branchParam, view }}
         />
-        <a
-          href={`/fiskal/export?year=${year}&currency=${displayCurrency}&branch=${branchParam}&view=${view}`}
-          className="btn btn-gold btn-sm print-hide"
-        >
-          ⬇ Export Excel
-        </a>
+        <div className="flex items-end gap-2 print-hide">
+          <a
+            href={`/fiskal/export-pdf?year=${year}&currency=${displayCurrency}&branch=${branchParam}&view=${view}`}
+            className="btn btn-outline btn-sm"
+            target="_blank"
+            rel="noopener"
+          >
+            ⬇ Export PDF
+          </a>
+          <a
+            href={`/fiskal/export?year=${year}&currency=${displayCurrency}&branch=${branchParam}&view=${view}`}
+            className="btn btn-gold btn-sm"
+          >
+            ⬇ Export Excel
+          </a>
+        </div>
       </div>
 
       {/* Ringkasan filter — tampil saat print */}
@@ -163,7 +173,7 @@ export default async function FiskalPage({
         {view === "compare" ? (
           <CompareTable blocks={blocks} actual={actual} budget={budget} nf={nf} displayCurrency={displayCurrency} />
         ) : (
-          <table className="w-full border-collapse">
+          <table className="w-full border-collapse fiskal-matrix">
             <thead>
               <tr className="border-b-2 border-ink/20">
                 <th className="text-left py-1.5 px-2 text-[10px] font-semibold text-ink-3 w-[70px]">Account</th>
@@ -194,7 +204,7 @@ export default async function FiskalPage({
                 );
               })}
               {/* Net row */}
-              <tr className="border-t-2 border-ink/30 bg-cream font-bold">
+              <tr className="fm-net border-t-2 border-ink/30 bg-cream font-bold">
                 <td className="py-2 px-2" />
                 <td className="py-2 px-2 text-[12px]">NET SURPLUS / (DEFICIT)</td>
                 {net.map((v, i) => (
@@ -216,6 +226,14 @@ export default async function FiskalPage({
           .
         </p>
       )}
+
+      <div className="mt-8 pt-4 border-t border-line flex items-center justify-center gap-2.5">
+        <span className="text-[10px] uppercase tracking-[0.15em] text-ink-3">Powered by</span>
+        <span className="inline-flex items-center bg-white rounded-md px-2 py-1 shadow-sm border border-line">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/images/logo-idea.webp" alt="IDEA" className="h-3.5 w-auto" />
+        </span>
+      </div>
     </div>
   );
 }
@@ -238,7 +256,7 @@ function GroupRows({
   const subTotal = sub.reduce((s, x) => s + x, 0);
   return (
     <>
-      <tr className="bg-navy/5 border-y border-ink/10">
+      <tr className="fm-grp bg-navy/5 border-y border-ink/10">
         <td className="py-1.5 px-2 text-[11px] font-bold text-navy uppercase" colSpan={15}>
           {blk.name}
         </td>
@@ -257,7 +275,7 @@ function GroupRows({
           </tr>
         );
       })}
-      <tr className="border-b border-ink/10 bg-cream/60 font-semibold">
+      <tr className="fm-sub border-b border-ink/10 bg-cream/60 font-semibold">
         <td className="py-1.5 px-2" />
         <td className="py-1.5 px-2 text-[11px] text-ink-2">Subtotal {blk.name}</td>
         {sub.map((v, i) => (
@@ -285,7 +303,7 @@ function CompareTable({
   const sum = (a: number[] | undefined) => (a ? a.reduce((s, x) => s + x, 0) : 0);
   const td = "text-right py-1.5 px-2 text-[12px] tabular-nums whitespace-nowrap";
   return (
-    <table className="w-full border-collapse">
+    <table className="w-full border-collapse fiskal-matrix">
       <thead>
         <tr className="border-b-2 border-ink/20">
           <th className="text-left py-1.5 px-2 text-[10px] font-semibold text-ink-3 w-[70px]">Account</th>
@@ -299,7 +317,7 @@ function CompareTable({
       <tbody>
         {blocks.map((blk) => (
           <Fragment key={blk.key}>
-            <tr className="bg-navy/5 border-y border-ink/10">
+            <tr className="fm-grp bg-navy/5 border-y border-ink/10">
               <td className="py-1.5 px-2 text-[11px] font-bold text-navy uppercase" colSpan={6}>{blk.name}</td>
             </tr>
             {blk.cats.map((c) => {

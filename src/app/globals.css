@@ -179,3 +179,39 @@
 .fiskal-report table td:first-child {
   border-left: 1px solid #e8e5dd;
 }
+
+/* Freeze 2 kolom pertama (Account + Description) saat scroll horizontal */
+.fiskal-matrix th:nth-child(1),
+.fiskal-matrix td:nth-child(1),
+.fiskal-matrix th:nth-child(2),
+.fiskal-matrix td:nth-child(2) {
+  position: sticky;
+  z-index: 2;
+  background: #ffffff;
+}
+.fiskal-matrix th:nth-child(1),
+.fiskal-matrix td:nth-child(1) {
+  left: 0;
+  width: 70px; min-width: 70px; max-width: 70px;
+}
+.fiskal-matrix th:nth-child(2),
+.fiskal-matrix td:nth-child(2) {
+  left: 70px;
+  width: 240px; min-width: 240px; max-width: 240px;
+}
+/* Header kolom beku di atas sel data */
+.fiskal-matrix thead th:nth-child(1),
+.fiskal-matrix thead th:nth-child(2) { z-index: 3; background: #f4f2ec; }
+/* Latar opaque mengikuti warna baris khusus (grup/subtotal/net) */
+.fiskal-matrix tr.fm-grp td:nth-child(1),
+.fiskal-matrix tr.fm-grp td:nth-child(2) { background: #ececf3; }
+.fiskal-matrix tr.fm-sub td:nth-child(1),
+.fiskal-matrix tr.fm-sub td:nth-child(2) { background: #f3f1ea; }
+.fiskal-matrix tr.fm-net td:nth-child(1),
+.fiskal-matrix tr.fm-net td:nth-child(2) { background: #f1ede2; }
+/* Baris header grup memakai colSpan penuh → jangan di-sticky / dibatasi lebar */
+.fiskal-matrix tr.fm-grp td {
+  position: static;
+  width: auto; min-width: 0; max-width: none;
+  left: auto;
+}
