@@ -34,6 +34,27 @@ export function convertToUSD(amount: number, fromCurrency: string, rates: RateMa
 }
 
 /**
+ * Convert amount dari satu currency ke currency lain pakai rates map.
+ * rate_to_usd: 1 USD = rate × currency. Jadi:
+ *   usd = amount / rate[from]  →  target = usd × rate[to]
+ * Return null kalau salah satu currency tidak punya rate.
+ */
+export function convertCurrency(
+  amount: number,
+  from: string,
+  to: string,
+  rates: RateMap
+): number | null {
+  const f = from.toUpperCase();
+  const t = to.toUpperCase();
+  if (f === t) return amount;
+  const rf = rates[f];
+  const rt = rates[t];
+  if (rf === undefined || rt === undefined) return null;
+  return (amount / rf) * rt;
+}
+
+/**
  * Helper: parse string atau number jadi number aman.
  */
 export function toNumber(amount: string | number | null | undefined): number {

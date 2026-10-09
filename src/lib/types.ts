@@ -31,9 +31,21 @@ export interface Account {
   last_synced_at: string | null; created_at: string; updated_at: string;
 }
 
+export interface CategoryGroup {
+  id: number; name: string; kind: "revenue" | "expense" | "other";
+  display_order: number; created_at: string; updated_at: string;
+}
+
 export interface Category {
   id: number; name: string; type: CategoryType; keywords: string[];
   color: string; priority: number; is_system: boolean;
+  account_code: string | null; group_id: number | null;
+  created_at: string; updated_at: string;
+}
+
+export interface FiscalBudget {
+  id: number; branch_id: number; category_id: number;
+  fiscal_year: number; month: number; currency: string; amount: string;
   created_at: string; updated_at: string;
 }
 

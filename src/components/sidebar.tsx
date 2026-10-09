@@ -10,6 +10,7 @@ const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", section: "Utama" },
   { href: "/upload", label: "Upload Mutasi" },
   { href: "/laporan", label: "Laporan" },
+  { href: "/fiskal", label: "Laporan Fiskal" },
   { href: "/transaksi", label: "Transaksi" },
   { href: "/cabang", label: "Kelola Cabang", section: "Pengaturan", globalOnly: true },
   { href: "/kategori", label: "Kategori", globalOnly: true },

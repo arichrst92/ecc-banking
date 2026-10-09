@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Topbar } from "@/components/topbar";
 import { getSession } from "@/lib/session";
 import { query, queryOne } from "@/lib/db";
-import type { Category } from "@/lib/types";
+import type { Category, CategoryGroup } from "@/lib/types";
 import { createCategoryAction, updateCategoryAction, deleteCategoryAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -30,8 +30,14 @@ export default async function KategoriPage({
   const session = getSession()!;
   if (session.role !== "global") redirect("/dashboard");
 
-  const categories = await query<Category>(
-    `SELECT * FROM categories ORDER BY priority ASC, name ASC`
+  const categories = await query<Category & { group_name: string | null }>(
+    `SELECT c.*, g.name AS group_name
+       FROM categories c
+       LEFT JOIN category_groups g ON g.id = c.group_id
+      ORDER BY c.account_code NULLS LAST, c.priority ASC, c.name ASC`
+  );
+  const groups = await query<CategoryGroup>(
+    `SELECT * FROM category_groups ORDER BY display_order, name`
   );
 
   const showForm = searchParams.show === "form" || !!searchParams.edit;
@@ -60,7 +66,8 @@ export default async function KategoriPage({
       )}
 
       {!showForm && (
-        <div className="mb-4 flex justify-end">
+        <div className="mb-4 flex justify-end gap-2">
+          <Link href="/kategori/grup" className="btn btn-outline">Kelola Grup</Link>
           <Link href="/kategori?show=form" className="btn btn-gold">+ Tambah Kategori</Link>
         </div>
       )}
@@ -95,6 +102,28 @@ export default async function KategoriPage({
                 <option value="masuk">Masuk (pemasukan)</option>
                 <option value="keluar">Keluar (pengeluaran)</option>
                 <option value="keduanya">Keduanya</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="form-label">Kode Akun (opsional)</label>
+              <input
+                name="account_code"
+                className="form-input"
+                defaultValue={editing?.account_code ?? ""}
+                placeholder="Mis. 4001 / 5001"
+                pattern="[A-Za-z0-9-]*"
+              />
+              <p className="text-[10px] text-ink-3 mt-1">Nomor akun di Chart of Accounts (Laporan Fiskal).</p>
+            </div>
+
+            <div>
+              <label className="form-label">Grup (Chart of Accounts)</label>
+              <select name="group_id" className="form-select" defaultValue={editing?.group_id ?? ""}>
+                <option value="">— Tanpa grup —</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
               </select>
             </div>
 
@@ -189,7 +218,9 @@ export default async function KategoriPage({
         <table className="w-full text-[13px]">
           <thead>
             <tr className="border-b border-line">
+              <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Kode</th>
               <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Nama</th>
+              <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Grup</th>
               <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Tipe</th>
               <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Kata Kunci</th>
               <th className="text-left py-2 px-2 text-[10px] uppercase tracking-wider text-ink-3 font-medium">Priority</th>
@@ -199,6 +230,7 @@ export default async function KategoriPage({
           <tbody>
             {categories.map((c) => (
               <tr key={c.id} className="border-b border-line hover:bg-cream">
+                <td className="py-2.5 px-2 text-ink-2 font-mono text-[12px]">{c.account_code ?? "—"}</td>
                 <td className="py-2.5 px-2">
                   <span
                     className="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle"
@@ -207,6 +239,7 @@ export default async function KategoriPage({
                   <span className="font-medium">{c.name}</span>
                   {c.is_system && <span className="ml-2 chip chip-gray">system</span>}
                 </td>
+                <td className="py-2.5 px-2 text-ink-2 text-[11px]">{c.group_name ?? "—"}</td>
                 <td className="py-2.5 px-2 text-ink-2">{c.type}</td>
                 <td className="py-2.5 px-2 text-ink-2 text-[11px]">
                   {c.keywords.join(", ") || "—"}

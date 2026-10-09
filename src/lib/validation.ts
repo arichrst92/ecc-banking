@@ -35,11 +35,21 @@ export const AccountSchema = z.object({
 });
 
 export const CategorySchema = z.object({
-  name: z.string().trim().min(2).max(50),
+  name: z.string().trim().min(2).max(60),
   type: z.enum(["masuk", "keluar", "keduanya"]),
   keywords_raw: z.string().trim().max(500).optional().nullable(), // comma-separated
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Format warna #rrggbb"),
   priority: z.coerce.number().int().min(0).max(999),
+  account_code: z.string().trim().max(16).regex(/^[A-Za-z0-9-]*$/, "Kode hanya huruf/angka/strip")
+    .optional().nullable().transform((v) => (v ? v : null)),
+  group_id: z.coerce.number().int().positive().optional().nullable()
+    .transform((v) => (v ? v : null)),
+});
+
+export const CategoryGroupSchema = z.object({
+  name: z.string().trim().min(2, "Nama minimal 2 karakter").max(60),
+  kind: z.enum(["revenue", "expense", "other"]),
+  display_order: z.coerce.number().int().min(0).max(9999).default(100),
 });
 
 export function parseKeywords(raw: string | null | undefined): string[] {

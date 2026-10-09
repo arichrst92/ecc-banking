@@ -142,7 +142,40 @@
 
   /* Amount cells: no-wrap supaya angka nggak pecah 2 baris */
   td.text-right { white-space: nowrap !important; }
+
+  /* ── Laporan Fiskal: tabel lebar (15 kolom) harus muat penuh ── */
+  .fiskal-report .overflow-x-auto { overflow: visible !important; }
+  .fiskal-report table {
+    font-size: 6.5pt !important;
+    table-layout: fixed !important;
+    width: 100% !important;
+  }
+  .fiskal-report th,
+  .fiskal-report td {
+    padding: 2px 2px !important;
+    white-space: normal !important;
+    min-width: 0 !important;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    border: 0.5pt solid #bbb !important;   /* garis kolom saat dicetak */
+  }
+  /* Kolom Account sempit, Description agak lebar, bulan dibagi rata */
+  .fiskal-report th:nth-child(1),
+  .fiskal-report td:nth-child(1) { width: 5% !important; }
+  .fiskal-report th:nth-child(2),
+  .fiskal-report td:nth-child(2) { width: 16% !important; }
 }
 
 /* Print-only elements di-hide di layar normal */
 .print-only { display: none; }
+
+/* ── Laporan Fiskal: garis pemisah antar kolom di layar ── */
+.fiskal-report table { border-collapse: collapse; }
+.fiskal-report table th,
+.fiskal-report table td {
+  border-right: 1px solid #e8e5dd;
+}
+.fiskal-report table th:first-child,
+.fiskal-report table td:first-child {
+  border-left: 1px solid #e8e5dd;
+}

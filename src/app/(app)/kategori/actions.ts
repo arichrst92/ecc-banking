@@ -16,6 +16,8 @@ export async function createCategoryAction(formData: FormData) {
     keywords_raw: formData.get("keywords_raw"),
     color: formData.get("color"),
     priority: formData.get("priority"),
+    account_code: formData.get("account_code"),
+    group_id: formData.get("group_id"),
   });
 
   if (!parsed.success) {
@@ -27,16 +29,19 @@ export async function createCategoryAction(formData: FormData) {
 
   try {
     const { rows } = await db.query<{ id: number }>(
-      `INSERT INTO categories (name, type, keywords, color, priority, is_system)
-       VALUES ($1, $2, $3, $4, $5, false) RETURNING id`,
-      [d.name, d.type, keywords, d.color, d.priority]
+      `INSERT INTO categories (name, type, keywords, color, priority, is_system, account_code, group_id)
+       VALUES ($1, $2, $3, $4, $5, false, $6, $7) RETURNING id`,
+      [d.name, d.type, keywords, d.color, d.priority, d.account_code, d.group_id]
     );
     await logAudit(session, "create_category", {
       target_table: "categories", target_id: rows[0].id, details: { ...d, keywords },
     });
   } catch (e: any) {
     if (e.code === "23505") {
-      redirect(`/kategori?err=${encodeURIComponent("Nama kategori sudah dipakai")}`);
+      const msg = String(e.constraint ?? "").includes("account_code")
+        ? "Kode akun sudah dipakai kategori lain"
+        : "Nama kategori sudah dipakai";
+      redirect(`/kategori?err=${encodeURIComponent(msg)}`);
     }
     throw e;
   }
@@ -62,6 +67,8 @@ export async function updateCategoryAction(id: number, formData: FormData) {
     keywords_raw: formData.get("keywords_raw"),
     color: formData.get("color"),
     priority: formData.get("priority"),
+    account_code: formData.get("account_code"),
+    group_id: formData.get("group_id"),
   });
   if (!parsed.success) {
     redirect(`/kategori?err=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Input tidak valid")}`);
@@ -73,16 +80,19 @@ export async function updateCategoryAction(id: number, formData: FormData) {
   try {
     await db.query(
       `UPDATE categories
-          SET name=$1, type=$2, keywords=$3, color=$4, priority=$5
-        WHERE id=$6 AND is_system=false`,
-      [d.name, d.type, keywords, d.color, d.priority, id]
+          SET name=$1, type=$2, keywords=$3, color=$4, priority=$5, account_code=$6, group_id=$7
+        WHERE id=$8 AND is_system=false`,
+      [d.name, d.type, keywords, d.color, d.priority, d.account_code, d.group_id, id]
     );
     await logAudit(session, "update_category", {
       target_table: "categories", target_id: id, details: { ...d, keywords },
     });
   } catch (e: any) {
     if (e.code === "23505") {
-      redirect(`/kategori?err=${encodeURIComponent("Nama kategori sudah dipakai")}`);
+      const msg = String(e.constraint ?? "").includes("account_code")
+        ? "Kode akun sudah dipakai kategori lain"
+        : "Nama kategori sudah dipakai";
+      redirect(`/kategori?err=${encodeURIComponent(msg)}`);
     }
     throw e;
   }
