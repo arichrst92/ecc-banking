@@ -178,8 +178,16 @@ export default async function FiskalPage({
               <tr className="border-b-2 border-ink/20">
                 <th className="text-left py-1.5 px-2 text-[10px] font-semibold text-ink-3 w-[70px]">Account</th>
                 <th className="text-left py-1.5 px-2 text-[10px] font-semibold text-ink-3 min-w-[220px]">Account Description</th>
-                {MONTHS.map((m) => (
-                  <th key={m} className={thMon}>{m}</th>
+                {MONTHS.map((m, i) => (
+                  <th key={m} className={thMon}>
+                    <a
+                      href={`/fiskal/bulan?month=${i + 1}&year=${year}&currency=${displayCurrency}&branch=${branchParam}`}
+                      className="hover:text-brand-orange hover:underline cursor-pointer"
+                      title={`Lihat detail ${m} ${year}`}
+                    >
+                      {m}
+                    </a>
+                  </th>
                 ))}
                 <th className={thMon + " font-bold"}>Total</th>
               </tr>

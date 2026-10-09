@@ -169,6 +169,42 @@ export async function GET(request: NextRequest) {
     for (const r of rows) { if (doc.y + 14 > bottomLimit) { doc.addPage(); header(); } drawTableRow(colW, align, r); }
   }
 
+  // Bar chart kategori terbesar (Masuk hijau + Keluar merah, proporsional)
+  function drawCatChart(cats: { name: string; in: number; out: number }[], nf: Intl.NumberFormat) {
+    const top = [...cats].filter((c) => c.in + c.out > 0).sort((a, b) => b.in + b.out - (a.in + a.out)).slice(0, 6);
+    if (top.length === 0) return;
+    const max = Math.max(...top.map((c) => c.in + c.out));
+    const labelW = 150, valW = 95, barMax = usableW - labelW - valW - 8, barH = 11, gap = 6;
+    ensure(top.length * (barH + gap) + 34);
+    doc.font("Helvetica-Bold").fontSize(9).fillColor("#1a1a1a").text("Grafik — Kategori Terbesar", M, doc.y + 2);
+    doc.moveDown(0.25);
+    for (const c of top) {
+      const y = doc.y;
+      let name = c.name;
+      const lw = labelW - 4;
+      doc.font("Helvetica").fontSize(7.5).fillColor("#1a1a1a");
+      if (doc.widthOfString(name) > lw) { while (name.length > 1 && doc.widthOfString(name + "…") > lw) name = name.slice(0, -1); name += "…"; }
+      doc.text(name, M, y + 1, { width: lw, lineBreak: false });
+      const total = c.in + c.out;
+      const fullW = max > 0 ? (total / max) * barMax : 0;
+      const inW = total > 0 ? (c.in / total) * fullW : 0;
+      const outW = fullW - inW;
+      const bx = M + labelW;
+      if (inW > 0) doc.rect(bx, y, inW, barH).fill("#2e7d6e");
+      if (outW > 0) doc.rect(bx + inW, y, outW, barH).fill("#c0392b");
+      doc.font("Helvetica").fontSize(7).fillColor("#4a4a4a").text(nf.format(total), bx + fullW + 4, y + 2, { width: valW, lineBreak: false });
+      doc.y = y + barH + gap;
+    }
+    // Legend
+    const ly = doc.y;
+    doc.rect(M, ly + 1, 7, 7).fill("#2e7d6e");
+    doc.fillColor("#4a4a4a").font("Helvetica").fontSize(7).text("Masuk (Income)", M + 11, ly, { lineBreak: false });
+    doc.rect(M + 95, ly + 1, 7, 7).fill("#c0392b");
+    doc.fillColor("#4a4a4a").text("Keluar (Expense)", M + 106, ly, { lineBreak: false });
+    doc.y = ly + 14;
+    doc.fillColor("#1a1a1a");
+  }
+
   // Header dokumen
   doc.font("Helvetica-Bold").fontSize(15).fillColor("#1a1a1a").text("ECC Global Finance", M, M);
   doc.font("Helvetica").fontSize(10).fillColor("#4a4a4a").text("Laporan Keuangan", M, doc.y + 1);
@@ -197,6 +233,10 @@ export async function GET(request: NextRequest) {
     doc.font("Helvetica-Bold").fontSize(11).fillColor("#1a1a1a").text(`Mata Uang: ${blk.currency}`, M, doc.y + 4);
     doc.font("Helvetica").fontSize(9).fillColor("#4a4a4a");
     doc.text(`Masuk: ${nf.format(blk.totIn)}    Keluar: ${nf.format(blk.totOut)}    Net: ${nf.format(net)}    Transaksi: ${blk.count}`, M, doc.y + 2);
+    doc.moveDown(0.5);
+
+    // Grafik kategori terbesar
+    drawCatChart(blk.cats, nf);
     doc.moveDown(0.4);
 
     // Per kategori
