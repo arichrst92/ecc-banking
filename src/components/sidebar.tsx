@@ -9,7 +9,7 @@ type NavItem = { href: string; label: string; section?: string; globalOnly?: boo
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", section: "Utama" },
   { href: "/upload", label: "Upload Mutasi" },
-  { href: "/laporan", label: "Laporan" },
+  { href: "/laporan", label: "Laporan Keuangan" },
   { href: "/fiskal", label: "Laporan Fiskal" },
   { href: "/transaksi", label: "Transaksi" },
   { href: "/cabang", label: "Kelola Cabang", section: "Pengaturan", globalOnly: true },

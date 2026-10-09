@@ -7,7 +7,6 @@ import { formatMoney, formatDate } from "@/lib/format";
 import { ChartLine } from "@/components/chart-line";
 import { ChartDoughnut } from "@/components/chart-doughnut";
 import { CascadeSelect } from "@/components/cascade-select";
-import { PrintButton } from "@/components/print-button";
 import { getCascadeOptions, buildTxWhere } from "@/lib/hierarchy";
 import { getViewMode, getDisplayFormatter } from "@/lib/view-mode";
 
@@ -187,6 +186,16 @@ export default async function LaporanPage({
     timeStyle: "short",
   }).format(new Date());
 
+  // Link export PDF (server-side) dengan filter aktif
+  const exportPdfQS = new URLSearchParams();
+  exportPdfQS.set("from", period.from);
+  exportPdfQS.set("to", period.to);
+  if (session.role === "global" && filterBranchId) exportPdfQS.set("branch_id", String(filterBranchId));
+  if (filterSegmentId) exportPdfQS.set("segment_id", String(filterSegmentId));
+  if (filterSubId) exportPdfQS.set("sub_id", String(filterSubId));
+  if (filterAccountId) exportPdfQS.set("account_id", String(filterAccountId));
+  const exportPdfHref = `/laporan/export-pdf?${exportPdfQS.toString()}`;
+
   return (
     <>
       <Topbar
@@ -237,9 +246,11 @@ export default async function LaporanPage({
         </div>
       </div>
 
-      {/* Tombol Cetak PDF — sembunyikan saat print sendiri */}
+      {/* Export PDF — server-side (pdfkit), konsisten lintas browser */}
       <div className="flex justify-end mb-4 print-hide">
-        <PrintButton label="Cetak PDF" className="btn btn-primary" />
+        <a href={exportPdfHref} className="btn btn-primary" target="_blank" rel="noopener">
+          ⬇ Export PDF
+        </a>
       </div>
 
       {/* Filter bar — cascade */}
